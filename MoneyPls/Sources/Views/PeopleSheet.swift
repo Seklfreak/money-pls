@@ -45,7 +45,7 @@ struct PeopleSheet: View {
                                     Avatar(p, size: 44)
                                     Text(p.name).font(Theme.disp(17)).foregroundStyle(Theme.ink)
                                     Spacer()
-                                    if p.id == split.payer?.id { Pill(bg: Theme.amberBg, fg: Theme.amber, shadow: false) { Text("paid") } }
+                                    if p.id == split.payer?.id { Pill(bg: Theme.amberBg, fg: Theme.amber, shadow: false) { Text("you paid") } }
                                     Button { remove(p) } label: {
                                         Image(systemName: "xmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(Theme.faint)
                                             .frame(width: 36, height: 36).background(Circle().fill(Theme.bg))

@@ -16,7 +16,8 @@ struct ItemsView: View {
                 BrandHeader { path.removeAll() }
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Look right?").font(Theme.disp(30, .bold)).foregroundStyle(Theme.ink)
-                    Text("We read \(split.items.count) thing\(split.items.count == 1 ? "" : "s") off the receipt. Tap anything to fix it.")
+                    Text(split.items.isEmpty ? "Type in what you had — a line per dish is plenty."
+                         : "We read \(split.items.count) thing\(split.items.count == 1 ? "" : "s") off the receipt. Tap anything to fix it.")
                         .font(Theme.text(14)).foregroundStyle(Theme.muted)
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 ScrollView {
@@ -41,10 +42,11 @@ struct ItemsView: View {
                         }
                         HStack(spacing: 6) {
                             ForEach([15, 18, 20, 25], id: \.self) { pct in
+                                let on = tipPercent == pct
                                 Button { split.tipCents = (split.subtotalCents * pct + 50) / 100 } label: {
-                                    Text("\(pct)%").font(Theme.text(12, .extrabold)).foregroundStyle(Theme.body)
-                                        .padding(.horizontal, 10).padding(.vertical, 5).background(Capsule().fill(Theme.bg))
-                                }
+                                    Text("\(pct)%").font(Theme.text(12, .extrabold)).foregroundStyle(on ? Theme.bg : Theme.body)
+                                        .padding(.horizontal, 10).padding(.vertical, 5).background(Capsule().fill(on ? Theme.ink : Theme.bg))
+                                }.buttonStyle(PressStyle())
                             }
                             Spacer()
                         }.padding(.top, 6)
@@ -76,10 +78,11 @@ struct ItemsView: View {
         }
     }
 
-    private var tipLabel: String {
-        guard split.subtotalCents > 0, split.tipCents > 0 else { return "TIP" }
-        return "TIP · \(Int((Double(split.tipCents) / Double(split.subtotalCents) * 100).rounded()))%"
+    private var tipPercent: Int? {
+        guard split.subtotalCents > 0, split.tipCents > 0 else { return nil }
+        return Int((Double(split.tipCents) / Double(split.subtotalCents) * 100).rounded())
     }
+    private var tipLabel: String { tipPercent.map { "TIP · \($0)%" } ?? "TIP" }
     private func addItem() {
         let item = LineItem(name: "", quantity: 1, priceCents: 0, order: (split.items.map(\.order).max() ?? -1) + 1)
         split.items.append(item)
@@ -93,9 +96,9 @@ struct ItemRow: View {
     let delete: () -> Void
     var body: some View {
         HStack(spacing: 8) {
-            TextField("Item", text: $item.name).focused(focus, equals: item.id)
+            TextField("Item", text: $item.name, axis: .vertical).lineLimit(1...3).focused(focus, equals: item.id)
                 .font(Theme.text(14)).foregroundStyle(Theme.ink)
-                .padding(.horizontal, 10).frame(height: 40).frame(maxWidth: .infinity)
+                .padding(.horizontal, 10).padding(.vertical, 8).frame(minHeight: 40).frame(maxWidth: .infinity)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Theme.bg))
             TextField("1", value: $item.quantity, format: .number).keyboardType(.numberPad).multilineTextAlignment(.center)
                 .font(Theme.text(14)).foregroundStyle(Theme.ink).frame(width: 44, height: 40)

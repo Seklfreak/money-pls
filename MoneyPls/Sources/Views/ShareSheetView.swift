@@ -20,13 +20,14 @@ struct ShareSheetView: View {
             }.frame(maxWidth: .infinity, alignment: .leading)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 14) { ForEach(bills) { ShareCard(split: split, bill: $0).frame(width: 320) } }.padding(.horizontal, 2).padding(.vertical, 20)
-            }.scrollTargetBehavior(.viewAligned)
+            }.scrollTargetBehavior(.viewAligned).scrollClipDisabled()
             Spacer(minLength: 0)
             VStack(spacing: 10) {
                 PrimaryButton(title: single != nil ? "Send the card" : "Send the cards", icon: "square.and.arrow.up") { share() }
                 SecondaryButton(title: copied ? "Copied!" : "Copy as text") {
                     UIPasteboard.general.string = bills.map { text(for: $0) }.joined(separator: "\n\n")
                     copied = true
+                    Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
                 }
             }
         }
@@ -36,7 +37,7 @@ struct ShareSheetView: View {
 
     private func text(for bill: PersonBill) -> String {
         let lines = bill.lines.map { "\($0.label) \($0.cents.money)" }.joined(separator: " · ")
-        return "\(bill.person.name) — \(split.title): \(bill.totalCents.money) pls (to \(split.payer?.name ?? "me"))\n\(lines)"
+        return "\(bill.person.name) — \(split.displayTitle): \(bill.totalCents.money) pls (to \(split.payer?.name ?? "me"))\n\(lines)"
     }
 
     private func share() {
@@ -63,7 +64,7 @@ struct ShareCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("MONEY PLS").font(Theme.disp(13)).foregroundStyle(Theme.trayDark).kerning(0.5)
                     Text("\(bill.person.name),\n\(bill.totalCents.money) pls").font(Theme.disp(26, .bold)).foregroundStyle(Theme.ink).lineSpacing(2)
-                    Text("\(split.title) · to \(split.payer?.name ?? "me")").font(Theme.text(12)).foregroundStyle(Theme.muted)
+                    Text("\(split.displayTitle) · to \(split.payer?.name ?? "me")").font(Theme.text(12)).foregroundStyle(Theme.muted)
                 }.padding(.bottom, 16)
                 Spacer()
                 Logo(size: 88)

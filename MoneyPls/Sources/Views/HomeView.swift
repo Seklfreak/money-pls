@@ -9,6 +9,7 @@ struct HomeView: View {
     @Query(sort: \Split.createdAt, order: .reverse) private var splits: [Split]
     @State private var path: [Route] = []
     @State private var showCamera = false
+    @State private var showPhotos = false
     @State private var photoItem: PhotosPickerItem?
     @State private var processing: UIImage?
     @State private var processingCropped = false
@@ -30,7 +31,7 @@ struct HomeView: View {
                         }.padding(.top, 12)
                         VStack(spacing: 10) {
                             PrimaryButton(title: "Scan a receipt", icon: "camera.fill", height: 68, fontSize: 20) { showCamera = true }
-                            PhotosPicker(selection: $photoItem, matching: .images) { PickPhotosLabel() }.buttonStyle(PressStyle())
+                            Button { showPhotos = true } label: { PickPhotosLabel() }.buttonStyle(PressStyle())
                         }
                         if !splits.isEmpty {
                             VStack(spacing: 10) {
@@ -58,6 +59,7 @@ struct HomeView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
+        .photosPicker(isPresented: $showPhotos, selection: $photoItem, matching: .images)
         .fullScreenCover(isPresented: $showCamera) {
             DocumentCamera { image in showCamera = false; if let image { processingCropped = true; processing = image } }
                 .ignoresSafeArea()
@@ -73,6 +75,11 @@ struct HomeView: View {
             ProcessingView(image: image, alreadyCropped: processingCropped) { result in
                 processing = nil
                 if let result { let s = makeSplit(from: result, image: image); path = [.items(s.id)] }
+            } retry: {
+                // Reopen whichever source the failed photo came from.
+                let fromCamera = processingCropped
+                processing = nil
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { if fromCamera { showCamera = true } else { showPhotos = true } }
             }
         }
     }
@@ -84,7 +91,8 @@ struct HomeView: View {
     }
 
     private func makeSplit(from r: ParsedReceipt, image: UIImage) -> Split {
-        let raw = r.merchant ?? "New split"
+        // No merchant → empty title so the tray shows its "Where was this?" placeholder instead of a fake name.
+        let raw = r.merchant ?? ""
         let s = Split(title: raw == raw.uppercased() ? raw.capitalized : raw)
         s.taxCents = r.taxCents ?? 0
         s.tipCents = r.tipCents ?? 0
@@ -102,14 +110,16 @@ struct HistoryRow: View {
     let split: Split
     var body: some View {
         let outstanding = Money.outstanding(for: split)
-        let owing = split.sortedPeople.filter { $0.id != split.payer?.id && !$0.paid }
+        let owing = split.sortedPeople.filter { $0.id != split.payer?.id && !$0.settled }
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
-                Text(split.title).font(Theme.disp(17)).foregroundStyle(Theme.ink).lineLimit(1)
+                Text(split.displayTitle).font(Theme.disp(17)).foregroundStyle(Theme.ink).lineLimit(2)
                 HStack(spacing: 8) {
                     Text(split.createdAt.formatted(.relative(presentation: .named)).capitalizedFirst).font(Theme.text(12)).foregroundStyle(Theme.muted)
-                    Text("·").foregroundStyle(Theme.muted)
-                    AvatarStack(people: split.sortedPeople, size: 24)
+                    if !split.people.isEmpty {
+                        Text("·").foregroundStyle(Theme.muted)
+                        AvatarStack(people: split.sortedPeople, size: 24)
+                    }
                 }
             }
             Spacer()

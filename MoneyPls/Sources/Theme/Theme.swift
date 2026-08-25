@@ -5,9 +5,9 @@ enum Theme {
     static let bgTop = Color(hex: 0xffe9d6)
     static let ink = Color(hex: 0x4a3728)
     static let inkDeep = Color(hex: 0x2e2118)
-    static let muted = Color(hex: 0xa98c72)
+    static let muted = Color(hex: 0x866a52)   // 4.7:1 on bg
     static let body = Color(hex: 0x7a5c44)
-    static let faint = Color(hex: 0xc8b39e)
+    static let faint = Color(hex: 0x9c846b)   // 3.5:1 on paper — labels only
     static let line = Color(hex: 0xf0dcc6)
     static let sand = Color(hex: 0xe9d9c6)
     static let paper = Color(hex: 0xfffdf8)
@@ -15,9 +15,9 @@ enum Theme {
     static let trayLight = Color(hex: 0xe6c39c)
     static let trayDark = Color(hex: 0xb98a5e)
     static let trayEdge = Color(hex: 0x8f6642)
-    static let pink = Color(hex: 0xff8fa3)
-    static let pinkShadow = Color(hex: 0xe06a80)
-    static let amber = Color(hex: 0xd99a1e)
+    static let pink = Color(hex: 0xe86b84)    // white text ≈3.1:1
+    static let pinkShadow = Color(hex: 0xcf5771)
+    static let amber = Color(hex: 0xa8740c)   // 3.6:1 on amberBg
     static let amberBg = Color(hex: 0xfff1d9)
     static let green = Color(hex: 0x3f9e5a)
     static let mint = Color(hex: 0x6cc98a)

@@ -25,6 +25,7 @@ struct ProcessingView: View {
     let image: UIImage
     let alreadyCropped: Bool
     let done: (ParsedReceipt?) -> Void
+    let retry: () -> Void
     @State private var status = "Reading the receipt…"
     @State private var failed = false
     @State private var started = false
@@ -47,8 +48,9 @@ struct ProcessingView: View {
                 .raised(Capsule(), fill: Theme.bg, shadow: Theme.line, depth: 3)
                 if failed {
                     VStack(spacing: 10) {
-                        PrimaryButton(title: "Add items by hand") { done(ParsedReceipt()) }
-                        SecondaryButton(title: "Cancel") { done(nil) }
+                        PrimaryButton(title: "Try another photo", icon: "camera.fill", action: retry)
+                        SecondaryButton(title: "Add items by hand") { done(ParsedReceipt()) }
+                        Button("Cancel") { done(nil) }.font(Theme.text(14, .extrabold)).foregroundStyle(Theme.faint).padding(.top, 4)
                     }.padding(.horizontal, 32)
                 }
             }

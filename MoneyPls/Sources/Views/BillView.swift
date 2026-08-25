@@ -15,22 +15,21 @@ struct BillView: View {
             PageBackground(stop: 0.3)
             ScrollView {
                 VStack(spacing: 16) {
-                    HStack {
-                        RoundIconButton(system: "chevron.left") { path.removeLast() }
-                        Spacer()
-                        Button { shareAll = true } label: {
-                            HStack(spacing: 6) { Image(systemName: "square.and.arrow.up").font(.system(size: 15, weight: .bold)); Text("Share all").font(Theme.disp(15)) }
-                                .foregroundStyle(.white).padding(.horizontal, 18).frame(height: 44)
-                                .raised(Capsule(), fill: Theme.pink, shadow: Theme.pinkShadow, depth: 4)
-                        }.buttonStyle(PressStyle())
-                    }
-                    HStack(spacing: 14) {
-                        Logo(size: 72)
+                    // The bill is the finish line: back goes home, not back through Assign and Items.
+                    BrandHeader { path.removeAll() }
+                    HStack(alignment: .bottom) {
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("Money pls").font(Theme.disp(30, .bold)).foregroundStyle(Theme.ink)
-                            Text("\(split.title) · \(payer?.name ?? "You") paid \(split.totalCents.money)").font(Theme.text(14)).foregroundStyle(Theme.muted)
+                            Text("Who owes what").font(Theme.disp(30, .bold)).foregroundStyle(Theme.ink)
+                            Text("\(split.displayTitle) · \(payer?.name ?? "You") paid \(split.totalCents.money)").font(Theme.text(14)).foregroundStyle(Theme.muted)
                         }
                         Spacer()
+                        if bills.filter({ $0.person.id != payer?.id && !$0.person.settled }).count > 1 {
+                            Button { shareAll = true } label: {
+                                HStack(spacing: 6) { Image(systemName: "square.and.arrow.up").font(.system(size: 14, weight: .bold)); Text("Share all").font(Theme.disp(14)) }
+                                    .foregroundStyle(.white).padding(.horizontal, 14).frame(height: 38)
+                                    .raised(Capsule(), fill: Theme.pink, shadow: Theme.pinkShadow, depth: 3)
+                            }.buttonStyle(PressStyle())
+                        }
                     }
                     VStack(spacing: 12) {
                         ForEach(bills.filter { $0.person.id != payer?.id }) { bill in
@@ -41,7 +40,7 @@ struct BillView: View {
                                 Avatar(payer, size: 40)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(payer.name).font(Theme.disp(18)).foregroundStyle(Theme.ink)
-                                    Text("paid · keeps \(mine.totalCents.money) worth").font(Theme.text(12)).foregroundStyle(Theme.muted)
+                                    Text("your share · \(mine.totalCents.money)").font(Theme.text(12)).foregroundStyle(Theme.muted)
                                 }
                                 Spacer()
                                 Text("—").font(Theme.disp(18)).foregroundStyle(Theme.muted)
@@ -69,15 +68,16 @@ struct BillCard: View {
                 Avatar(bill.person, size: 40)
                 VStack(alignment: .leading, spacing: 0) {
                     Text(bill.person.name).font(Theme.disp(18)).foregroundStyle(Theme.ink)
-                    Text(bill.person.paid ? "paid ✓" : "money pls").font(Theme.text(12)).foregroundStyle(bill.person.paid ? Theme.green : Theme.muted)
+                    Text(bill.person.settled ? "settled ✓" : "money pls").font(Theme.text(12)).foregroundStyle(bill.person.settled ? Theme.green : Theme.muted)
                 }
                 Spacer()
                 Text(bill.totalCents.money).font(Theme.disp(22, .bold)).foregroundStyle(Theme.ink).monospacedDigit()
-                    .strikethrough(bill.person.paid, color: Theme.green)
-                Button { bill.person.paid.toggle() } label: {
-                    Image(systemName: bill.person.paid ? "checkmark.circle.fill" : "circle").font(.system(size: 26, weight: .semibold))
-                        .foregroundStyle(bill.person.paid ? Theme.green : Theme.sand)
+                    .strikethrough(bill.person.settled, color: Theme.green)
+                Button { bill.person.settled.toggle() } label: {
+                    Image(systemName: bill.person.settled ? "checkmark.circle.fill" : "circle").font(.system(size: 26, weight: .semibold))
+                        .foregroundStyle(bill.person.settled ? Theme.green : Theme.sand)
                 }
+                .accessibilityLabel(bill.person.settled ? "Mark as not settled" : "Mark as settled")
             }
             .padding(.horizontal, 16).padding(.vertical, 14).background(color.opacity(0.13))
             VStack(spacing: 4) {

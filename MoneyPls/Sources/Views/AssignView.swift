@@ -37,7 +37,7 @@ struct AssignView: View {
                 .padding(.horizontal, -2).frame(height: 34)
                 ScrollView {
                     Tray {
-                        Text(split.title).font(Theme.disp(16, .bold)).foregroundStyle(Theme.ink)
+                        Text(split.displayTitle).font(Theme.disp(16, .bold)).foregroundStyle(Theme.ink)
                         Text("\(split.people.count) hungry people").font(Theme.text(12)).foregroundStyle(Theme.muted).padding(.bottom, 8)
                         DottedRule().padding(.bottom, 6)
                         ForEach(split.sortedItems) { item in
@@ -141,7 +141,7 @@ struct ReceiptLine: View {
         let rail: Color = item.everyone ? .clear : who.count == 1 ? Theme.avatarColor(who[0].colorIndex) : who.isEmpty ? Theme.amber : Theme.sand
         let tint: Color = selected ? Theme.amberBg : item.everyone ? .clear : who.count == 1 ? Theme.avatarColor(who[0].colorIndex).opacity(0.12) : who.isEmpty ? Theme.amberBg : Color(hex: 0xfaf3ea)
         HStack(spacing: 8) {
-            Text(item.displayName).font(Theme.text(14)).foregroundStyle(Theme.ink).lineLimit(1)
+            Text(item.displayName).font(Theme.text(14)).foregroundStyle(Theme.ink).lineLimit(2).multilineTextAlignment(.leading)
             Spacer(minLength: 4)
             if item.everyone {
                 HStack(spacing: 4) { Image(systemName: "person.2.fill").font(.system(size: 10)); Text("ALL").kerning(0.6) }
@@ -153,7 +153,7 @@ struct ReceiptLine: View {
             }
             Text(item.priceCents.moneyPlain).font(Theme.text(14)).foregroundStyle(Theme.ink).monospacedDigit().frame(width: 56, alignment: .trailing)
         }
-        .padding(.horizontal, 10).frame(minHeight: 42)
+        .padding(.horizontal, 10).padding(.vertical, 4).frame(minHeight: 42)
         .background(RoundedRectangle(cornerRadius: 10).fill(tint))
         .overlay(alignment: .leading) { RoundedRectangle(cornerRadius: 2).fill(selected ? Theme.pink : rail).frame(width: 4) }
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.pink, lineWidth: selected ? 2.5 : 0))

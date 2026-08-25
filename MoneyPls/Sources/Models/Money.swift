@@ -90,6 +90,6 @@ enum Money {
     /// What everyone but the payer still owes.
     static func outstanding(for split: Split) -> Int {
         let payer = split.payer?.id
-        return bills(for: split).filter { $0.person.id != payer && !$0.person.paid }.reduce(0) { $0 + $1.totalCents }
+        return bills(for: split).filter { $0.person.id != payer && !$0.person.settled }.reduce(0) { $0 + $1.totalCents }
     }
 }
