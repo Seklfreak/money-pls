@@ -182,7 +182,7 @@ struct Tray<Content: View>: View {
 }
 
 /// Scroll container for a Tray. Spans the full screen width so the tray's shadow isn't clipped at the
-/// sides, and fades the top edge so lines slide under the header softly instead of hitting a hard cut.
+/// sides, and fades both edges so lines slide under the header and footer softly instead of hitting a hard cut.
 struct TrayScroll<Content: View>: View {
     @ViewBuilder var content: Content
     var body: some View {
@@ -193,6 +193,7 @@ struct TrayScroll<Content: View>: View {
         .mask(VStack(spacing: 0) {
             LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 20)
             Color.black
+            LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 24)
         })
     }
 }
