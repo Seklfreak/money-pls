@@ -31,11 +31,11 @@ struct ItemsView: View {
                             // Translate names (on device) — only offered while some name is in a script we could translate.
                             if split.items.contains(where: { $0.needsTranslation && $0.translatedName == nil }) {
                                 Button { translate() } label: {
-                                    Image(systemName: "character.book.closed").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.pink)
-                                        .frame(width: 52, height: 24).background(Capsule().fill(Theme.bg))
+                                    Image(systemName: "character.book.closed").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.pink)
+                                        .frame(width: 60, height: 32).background(Capsule().fill(Theme.bg))
                                 }.accessibilityLabel("Translate names")
                             } else {
-                                Color.clear.frame(width: 52, height: 1)
+                                Color.clear.frame(width: 60, height: 1)
                             }
                             TextField("Where was this?", text: $split.title).font(Theme.disp(16, .bold)).multilineTextAlignment(.center).foregroundStyle(Theme.ink)
                             // Currency is read off the receipt; this is the override when it guessed wrong. Amounts don't convert.
@@ -46,8 +46,9 @@ struct ItemsView: View {
                                     }
                                 }
                             } label: {
-                                Text(split.currencyCode).font(Theme.text(11, .extrabold)).foregroundStyle(Theme.muted).kerning(0.4)
-                                    .padding(.horizontal, 8).padding(.vertical, 4).background(Capsule().fill(Theme.bg)).frame(width: 52)
+                                HStack(spacing: 3) { Text(split.currencyCode); Image(systemName: "chevron.down").font(.system(size: 9, weight: .heavy)) }
+                                    .font(Theme.text(13, .extrabold)).foregroundStyle(Theme.ink).kerning(0.3)
+                                    .frame(width: 60, height: 32).background(Capsule().fill(Theme.bg))
                             }
                         }.padding(.bottom, 8)
                         HStack(spacing: 8) {
@@ -190,8 +191,8 @@ struct MoneyField: View {
     @Binding var cents: Int
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text(label).font(Theme.text(11, .extrabold)).foregroundStyle(Theme.faint)
-            CentsField(cents: $cents, alignment: .leading).frame(height: 40).frame(maxWidth: .infinity)
+            Text(label).font(Theme.text(12, .extrabold)).foregroundStyle(Theme.muted).kerning(0.4)
+            CentsField(cents: $cents, alignment: .leading, fontSize: 16).frame(height: 44).frame(maxWidth: .infinity)
         }
     }
 }
@@ -201,11 +202,12 @@ struct CentsField: View {
     @Environment(\.currency) private var currency
     @Binding var cents: Int
     var alignment: TextAlignment = .trailing
+    var fontSize: CGFloat = 14
     @State private var text = ""
     @FocusState private var focused: Bool
     var body: some View {
         TextField("0.00", text: $text).keyboardType(.decimalPad).multilineTextAlignment(alignment).focused($focused)
-            .font(Theme.text(14)).foregroundStyle(Theme.ink).monospacedDigit()
+            .font(Theme.text(fontSize)).foregroundStyle(Theme.ink).monospacedDigit()
             .padding(.horizontal, 10)
             .background(RoundedRectangle(cornerRadius: 10).fill(Theme.bg))
             .onAppear { text = cents.moneyPlain(currency) }
