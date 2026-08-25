@@ -105,10 +105,3 @@ extension View {
         raised(RoundedRectangle(cornerRadius: radius, style: .continuous), fill: fill, shadow: Theme.line, depth: shadow)
     }
 }
-
-extension Int {
-    /// Cents → "$12.34"
-    var money: String { String(format: "$%@%d.%02d", self < 0 ? "-" : "", abs(self) / 100, abs(self) % 100) }
-    /// Cents → "12.34"
-    var moneyPlain: String { String(format: "%@%d.%02d", self < 0 ? "-" : "", abs(self) / 100, abs(self) % 100) }
-}

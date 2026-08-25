@@ -20,7 +20,7 @@ struct BillView: View {
                     HStack(alignment: .bottom) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Who owes what").font(Theme.disp(30, .bold)).foregroundStyle(Theme.ink)
-                            Text("\(split.displayTitle) · \(payer?.name ?? "You") paid \(split.totalCents.money)").font(Theme.text(14)).foregroundStyle(Theme.muted)
+                            Text("\(split.displayTitle) · \(payer?.name ?? "You") paid \(split.totalCents.money(split.currencyCode))").font(Theme.text(14)).foregroundStyle(Theme.muted)
                             Button { path.append(.assign(split.id)) } label: {
                                 HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward").font(.system(size: 11, weight: .bold)); Text("Change who had what") }
                                     .font(Theme.text(13, .extrabold)).foregroundStyle(Theme.pink)
@@ -44,7 +44,7 @@ struct BillView: View {
                                 Avatar(payer, size: 40)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(payer.name).font(Theme.disp(18)).foregroundStyle(Theme.ink)
-                                    Text("your share · \(mine.totalCents.money)").font(Theme.text(12)).foregroundStyle(Theme.muted)
+                                    Text("your share · \(mine.totalCents.money(split.currencyCode))").font(Theme.text(12)).foregroundStyle(Theme.muted)
                                 }
                                 Spacer()
                                 Text("—").font(Theme.disp(18)).foregroundStyle(Theme.muted)
@@ -75,7 +75,7 @@ struct BillCard: View {
                     Text(bill.person.settled ? "settled ✓" : "money pls").font(Theme.text(12)).foregroundStyle(bill.person.settled ? Theme.green : Theme.muted)
                 }
                 Spacer()
-                Text(bill.totalCents.money).font(Theme.disp(22, .bold)).foregroundStyle(Theme.ink).monospacedDigit()
+                Text(bill.totalCents.money(bill.currency)).font(Theme.disp(22, .bold)).foregroundStyle(Theme.ink).monospacedDigit()
                     .strikethrough(bill.person.settled, color: Theme.green)
                 Button { bill.person.settled.toggle() } label: {
                     Image(systemName: bill.person.settled ? "checkmark.circle.fill" : "circle").font(.system(size: 26, weight: .semibold))
@@ -86,7 +86,7 @@ struct BillCard: View {
             .padding(.horizontal, 16).padding(.vertical, 14).background(color.opacity(0.13))
             VStack(spacing: 4) {
                 ForEach(bill.lines) { l in
-                    HStack { Text(l.label); Spacer(); Text(l.cents.money).monospacedDigit() }
+                    HStack { Text(l.label); Spacer(); Text(l.cents.money(bill.currency)).monospacedDigit() }
                 }
             }
             .font(Theme.text(13)).foregroundStyle(Theme.body)

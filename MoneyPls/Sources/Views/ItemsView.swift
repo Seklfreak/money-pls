@@ -22,7 +22,21 @@ struct ItemsView: View {
                 }.frame(maxWidth: .infinity, alignment: .leading)
                 TrayScroll {
                     Tray {
-                        TextField("Where was this?", text: $split.title).font(Theme.disp(16, .bold)).multilineTextAlignment(.center).foregroundStyle(Theme.ink).padding(.bottom, 8)
+                        HStack(spacing: 8) {
+                            Color.clear.frame(width: 52, height: 1)
+                            TextField("Where was this?", text: $split.title).font(Theme.disp(16, .bold)).multilineTextAlignment(.center).foregroundStyle(Theme.ink)
+                            // Currency is read off the receipt; this is the override when it guessed wrong. Amounts don't convert.
+                            Menu {
+                                ForEach(Currency.supported, id: \.self) { code in
+                                    Button { split.currencyCode = code } label: {
+                                        if code == split.currencyCode { Label(code, systemImage: "checkmark") } else { Text(code) }
+                                    }
+                                }
+                            } label: {
+                                Text(split.currencyCode).font(Theme.text(11, .extrabold)).foregroundStyle(Theme.muted).kerning(0.4)
+                                    .padding(.horizontal, 8).padding(.vertical, 4).background(Capsule().fill(Theme.bg)).frame(width: 52)
+                            }
+                        }.padding(.bottom, 8)
                         HStack(spacing: 8) {
                             Text("ITEM").frame(maxWidth: .infinity, alignment: .leading).padding(.leading, 10)
                             Text("QTY").frame(width: 44)
@@ -50,12 +64,12 @@ struct ItemsView: View {
                             }
                             Spacer()
                         }.padding(.top, 6)
-                        HStack { Text("Total"); Spacer(); Text(split.totalCents.money).monospacedDigit() }
+                        HStack { Text("Total"); Spacer(); Text(split.totalCents.money(split.currencyCode)).monospacedDigit() }
                             .font(Theme.disp(17, .bold)).foregroundStyle(Theme.ink).padding(.top, 10)
                         if let printed = split.printedSubtotalCents, printed != split.subtotalCents {
                             HStack(spacing: 6) {
                                 Image(systemName: "exclamationmark.circle.fill")
-                                Text("Items add up to \(split.subtotalCents.money), but the receipt says \(printed.money). Worth a look.")
+                                Text("Items add up to \(split.subtotalCents.money(split.currencyCode)), but the receipt says \(printed.money(split.currencyCode)). Worth a look.")
                             }
                             .font(Theme.text(12, .extrabold)).foregroundStyle(Theme.amber)
                             .padding(10).frame(maxWidth: .infinity, alignment: .leading)
@@ -79,6 +93,7 @@ struct ItemsView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .environment(\.currency, split.currencyCode)
         .sheet(isPresented: $showPeople) {
             PeopleSheet(split: split) { showPeople = false; path.append(.assign(split.id)) }
                 .presentationDetents([.large]).presentationDragIndicator(.hidden)
@@ -90,7 +105,8 @@ struct ItemsView: View {
         return Int((Double(split.tipCents) / Double(split.subtotalCents) * 100).rounded())
     }
     private var reportContext: String {
-        "Items after parse: \(split.items.count), sum \(split.subtotalCents.money), printed subtotal \(split.printedSubtotalCents?.money ?? "none")"
+        let c = split.currencyCode
+        return "Items after parse: \(split.items.count), sum \(split.subtotalCents.money(c)), printed subtotal \(split.printedSubtotalCents?.money(c) ?? "none"), currency \(c)"
     }
     private var tipLabel: String { tipPercent.map { "TIP · \($0)%" } ?? "TIP" }
     private func addItem() {
@@ -143,6 +159,7 @@ struct MoneyField: View {
 
 /// Decimal text field bound to an integer number of cents.
 struct CentsField: View {
+    @Environment(\.currency) private var currency
     @Binding var cents: Int
     var alignment: TextAlignment = .trailing
     @State private var text = ""
@@ -152,10 +169,11 @@ struct CentsField: View {
             .font(Theme.text(14)).foregroundStyle(Theme.ink).monospacedDigit()
             .padding(.horizontal, 10)
             .background(RoundedRectangle(cornerRadius: 10).fill(Theme.bg))
-            .onAppear { text = cents.moneyPlain }
-            .onChange(of: cents) { _, v in if !focused { text = v.moneyPlain } }
+            .onAppear { text = cents.moneyPlain(currency) }
+            .onChange(of: cents) { _, v in if !focused { text = v.moneyPlain(currency) } }
+            .onChange(of: currency) { _, c in if !focused { text = cents.moneyPlain(c) } }
             .onChange(of: focused) { _, f in
-                if f { if cents == 0 { text = "" } } else { cents = Int(((Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0) * 100).rounded()); text = cents.moneyPlain }
+                if f { if cents == 0 { text = "" } } else { cents = Currency.minorUnits(from: text, code: currency); text = cents.moneyPlain(currency) }
             }
     }
 }

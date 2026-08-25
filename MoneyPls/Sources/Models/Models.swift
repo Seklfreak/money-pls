@@ -8,6 +8,8 @@ final class Split {
     var createdAt: Date = Date()
     var taxCents: Int = 0
     var tipCents: Int = 0
+    /// ISO 4217 code all the minor-unit amounts on this split are in. Existing splits predate it → dollars.
+    var currencyCode: String = "USD"
     var payerID: UUID?
     /// Subtotal as printed on the receipt, to flag parses that don't add up.
     var printedSubtotalCents: Int?

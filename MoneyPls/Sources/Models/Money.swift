@@ -9,6 +9,7 @@ struct ShareLine: Identifiable {
 
 struct PersonBill: Identifiable {
     let person: Person
+    let currency: String
     var id: UUID { person.id }
     var lines: [ShareLine]
     var itemCents: Int
@@ -98,7 +99,7 @@ enum Money {
                 l.append(ShareLine(label: sharedCount == 1 ? "1 shared plate" : "\(sharedCount) shared plates", cents: itemCents[i] - soloCents[i]))
             }
             if taxTip[i] > 0 { l.append(ShareLine(label: split.tipCents > 0 ? "Tax + tip" : "Tax", cents: taxTip[i])) }
-            return PersonBill(person: p, lines: l, itemCents: itemCents[i], taxTipCents: taxTip[i])
+            return PersonBill(person: p, currency: split.currencyCode, lines: l, itemCents: itemCents[i], taxTipCents: taxTip[i])
         }
     }
 

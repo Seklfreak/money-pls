@@ -7,6 +7,8 @@ import UIKit
 struct ParsedItem: Equatable { var name: String; var quantity: Int; var priceCents: Int }
 struct ParsedReceipt {
     var merchant: String?
+    /// Detected from the symbols on the receipt; the phone's currency when it prints none.
+    var currencyCode: String = Currency.default
     var items: [ParsedItem] = []
     var subtotalCents: Int?
     var taxCents: Int?
@@ -212,128 +214,6 @@ enum ReceiptParser {
         }
         for (qi, q) in phrases.enumerated() where !used.contains(qi) { lines.append(q) }
         return lines.sorted { $0.midY > $1.midY }.map(\.text)
-    }
-}
-
-// MARK: - Deterministic parser
-enum Heuristics {
-    static let priceRe = #"(-?\$?\s?\d{1,5}[.,] ?\d{2}|\$\s?\d{1,5} \d{2}|\$\d{3,5})\s*$"#   // "$12.99" / "12,99" / "$18. 99" / "$18 99" / "$799" (OCR drops dots, adds spaces)
-    static let noise = ["reprint", "suggested", "you pay", "order:", "order #", "table:", "guests", "qr code", "powered by", "unpaid",
-                        "check #", "server", "ticket", "authorization", "receipt:", "station"]
-
-    static func money(_ s: String) -> (Int, Range<String.Index>)? {
-        guard let r = s.range(of: priceRe, options: .regularExpression) else { return nil }
-        var t = s[r].trimmingCharacters(in: .whitespaces)
-        let hadDollar = t.hasPrefix("$")
-        t = t.replacingOccurrences(of: "$", with: "").replacingOccurrences(of: ",", with: ".").trimmingCharacters(in: .whitespaces)
-        if hadDollar, t.range(of: #"^\d{1,5} \d{2}$"#, options: .regularExpression) != nil { t = t.replacingOccurrences(of: " ", with: ".") }
-        t = t.replacingOccurrences(of: " ", with: "")
-        if !t.contains("."), hadDollar, let c = Int(t) { return (c, r) }
-        guard let d = Double(t) else { return nil }
-        return (Int((d * 100).rounded()), r)
-    }
-    static func stripHan(_ s: String) -> String {
-        s.replacingOccurrences(of: #"\d*[\p{Han}（）()/、·]+\d*"#, with: " ", options: .regularExpression)
-            .replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-    }
-    /// Letters and digits only, lowercased — what two OCR passes reliably agree on for the same name.
-    static func key(_ s: String) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
-    /// OCR clips edges ("otus Root" for "LOTUS ROOT"), so containment counts once there is enough to go on.
-    static func similar(_ a: String, _ b: String) -> Bool {
-        a == b || (min(a.count, b.count) >= 4 && (a.contains(b) || b.contains(a)))
-    }
-    static func boxes(_ raw: String) -> [String] {
-        raw.split(separator: "\t").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
-    }
-
-    static func parse(lines: [String]) -> ParsedReceipt {
-        var r = ParsedReceipt()
-        var pendingName: String?
-        var pendingQty: Int?
-        var pendingPrice: (Int, Int)?
-        let priced = lines.filter { money($0) != nil }
-        let leadingInt = priced.filter { $0.range(of: #"^\d{1,2}\s+\D"#, options: .regularExpression) != nil }.count
-        let qtyColumn = priced.count >= 3 && leadingInt * 10 >= priced.count * 6
-
-        func dropPending() {
-            guard let p = pendingName else { return }
-            pendingName = nil
-            let t = p.replacingOccurrences(of: "\t", with: " ").trimmingCharacters(in: .whitespaces)
-            guard let f = t.first, f.isLetter, t.filter(\.isLetter).count >= 3 else { return }
-            r.orphans.append((name: t, index: r.items.count))
-        }
-
-        func nameAndQty(_ raw: String) -> (String, Int?) {
-            var b = boxes(raw)
-            var q: Int?
-            if let f = b.first, let n = Int(f), n > 0, n < 100 { q = n; b.removeFirst() }
-            var name = b.joined(separator: " ")
-            if qtyColumn, let m = name.range(of: #"^\d{1,2}\s+(?=\D)"#, options: .regularExpression) { q = Int(name[m].trimmingCharacters(in: .whitespaces)); name.removeSubrange(m) }
-            if let m = name.range(of: #"\s*[×xX]\s?(\d{1,2})\s*$"#, options: .regularExpression) { q = Int(name[m].filter(\.isNumber)); name.removeSubrange(m) }
-            return (name.trimmingCharacters(in: .whitespaces), q)
-        }
-
-        // merchant: first mostly-alphabetic line before any priced line
-        for raw in lines {
-            let t = stripHan(raw.replacingOccurrences(of: "\t", with: " "))
-            if money(t) != nil { break }
-            let letters = t.filter(\.isLetter).count
-            if letters >= 3, letters * 10 >= t.count * 7, !noise.contains(where: { t.lowercased().contains($0) }) { r.merchant = t; break }
-        }
-
-        for raw in lines {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            let lower = line.lowercased()
-            if noise.contains(where: { lower.contains($0) }) { dropPending(); continue }
-            if lower.range(of: #"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2},? ?\d{4}"#, options: .regularExpression) != nil { continue }
-            if lower.range(of: #"\d{1,2}/\d{1,2}/\d{2,4}"#, options: .regularExpression) != nil { continue }
-            let bare = stripHan(line).lowercased()
-            let isKeyword = bare.contains("total") || bare.contains("amount due") || bare.range(of: #"\b(tax|tip|gratuity)\b"#, options: .regularExpression) != nil
-            guard var (price, pr) = money(line) else {
-                let latin = stripHan(line)
-                let flat = latin.replacingOccurrences(of: "\t", with: "")
-                if isKeyword, let (pp, _) = pendingPrice {   // price column drifted a row: the pending price is this line's
-                    pendingPrice = nil
-                    if bare.contains("subtotal") || bare.contains("sub total") { r.subtotalCents = pp; continue }
-                    if bare.contains("total") || bare.contains("amount due") { r.totalCents = pp; break }
-                    if bare.range(of: #"\btax\b"#, options: .regularExpression) != nil { r.taxCents = (r.taxCents ?? 0) + pp; continue }
-                    r.tipCents = pp; continue
-                }
-                if let q = Int(flat), q > 0, q < 100 {
-                    // A bilingual sub-label can leave its leading number behind ("10 秒牛舌" → "10"). When the
-                    // English line above starts with the same number it is part of the name, not a quantity.
-                    if pendingName?.hasPrefix("\(q) ") != true { pendingQty = q }
-                    continue
-                }
-                if flat.count >= 3 {
-                    if let (pp, pq) = pendingPrice {
-                        let (name, q) = nameAndQty(latin)
-                        r.items.append(ParsedItem(name: name, quantity: q ?? pq, priceCents: pp))
-                        pendingPrice = nil; pendingName = nil; pendingQty = nil
-                    } else { dropPending(); pendingName = latin }
-                }
-                continue
-            }
-            var text = line; text.removeSubrange(pr)
-            text = stripHan(text)
-            let tl = text.lowercased()
-            if let (pp, pq) = pendingPrice, !text.isEmpty {   // drifted column: swap — the pending price is ours, ours belongs to the next line
-                pendingPrice = (price, 1); price = pp; _ = pq
-            }
-            if tl.contains("subtotal") || tl.contains("sub total") { r.subtotalCents = price; continue }
-            if tl.contains("total") || tl.contains("amount due") || tl.contains("balance due") { r.totalCents = price; break }
-            if tl.range(of: #"\btax\b"#, options: .regularExpression) != nil { r.taxCents = (r.taxCents ?? 0) + price; continue }
-            if tl.range(of: #"\b(tip|gratuity|service)\b"#, options: .regularExpression) != nil { r.tipCents = price; continue }
-            var qty = pendingQty ?? 1
-            var (name, q) = nameAndQty(text)
-            if name.isEmpty, let p = pendingName { let (pn, pq) = nameAndQty(p); name = pn; q = q ?? pq; pendingName = nil }
-            if let q { qty = q }
-            dropPending(); pendingQty = nil
-            if name.isEmpty { pendingPrice = (price, qty); continue }
-            r.items.append(ParsedItem(name: name, quantity: qty, priceCents: price))
-        }
-        if r.subtotalCents == nil, let total = r.totalCents { r.subtotalCents = total - (r.taxCents ?? 0) - (r.tipCents ?? 0) }
-        return r
     }
 }
 

@@ -47,9 +47,9 @@ struct AssignView: View {
                                 .onLongPressGesture { quickAssignToMe(item) }
                         }
                         DottedRule().padding(.vertical, 6)
-                        HStack { Text(split.tipCents > 0 ? "Tax + tip" : "Tax"); Spacer(); Text((split.taxCents + split.tipCents).moneyPlain).monospacedDigit() }
+                        HStack { Text(split.tipCents > 0 ? "Tax + tip" : "Tax"); Spacer(); Text((split.taxCents + split.tipCents).moneyPlain(split.currencyCode)).monospacedDigit() }
                             .font(Theme.text(13)).foregroundStyle(Theme.muted)
-                        HStack { Text("Total"); Spacer(); Text(split.totalCents.money).monospacedDigit() }
+                        HStack { Text("Total"); Spacer(); Text(split.totalCents.money(split.currencyCode)).monospacedDigit() }
                             .font(Theme.disp(17, .bold)).foregroundStyle(Theme.ink)
                     }
                     .padding(.bottom, 24)
@@ -63,7 +63,7 @@ struct AssignView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
                                     Text(item.displayName).lineLimit(1)
-                                    Text("· \(item.priceCents.money)").monospacedDigit().fixedSize().layoutPriority(1)
+                                    Text("· \(item.priceCents.money(split.currencyCode))").monospacedDigit().fixedSize().layoutPriority(1)
                                 }.font(Theme.disp(18)).foregroundStyle(Theme.ink)
                                 Text(shareText(item)).font(Theme.text(13)).foregroundStyle(Theme.muted)
                             }
@@ -104,13 +104,14 @@ struct AssignView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .environment(\.currency, split.currencyCode)
     }
 
     private func shareText(_ item: LineItem) -> String {
         let n = item.everyone ? split.people.count : item.assigneeIDs.count
         if n == 0 { return "Nobody yet — pick someone" }
         if n == 1 { return "Just one person" }
-        return "\(n) ways · \((item.priceCents / n).money) each"
+        return "\(n) ways · \((item.priceCents / n).money(split.currencyCode)) each"
     }
     private func tap(_ item: LineItem) {
         withAnimation(.snappy) {
@@ -141,6 +142,7 @@ struct AssignView: View {
 /// One line on the receipt, styled per the line-state spec: quiet for "everyone", colored rail for one person,
 /// stacked avatars for a few, amber for nobody, dark outline when selected.
 struct ReceiptLine: View {
+    @Environment(\.currency) private var currency
     let item: LineItem
     let people: [Person]
     let selected: Bool
@@ -159,7 +161,7 @@ struct ReceiptLine: View {
             } else {
                 AvatarStack(people: who)
             }
-            Text(item.priceCents.moneyPlain).font(Theme.text(14)).foregroundStyle(Theme.ink).monospacedDigit().frame(width: 56, alignment: .trailing)
+            Text(item.priceCents.moneyPlain(currency)).font(Theme.text(14)).foregroundStyle(Theme.ink).monospacedDigit().frame(width: 56, alignment: .trailing)
         }
         .padding(.horizontal, 10).padding(.vertical, 4).frame(minHeight: 42)
         .background(

@@ -15,7 +15,13 @@ struct HomeView: View {
     @State private var processingCropped = false
     @State private var error: String?
 
-    var owed: Int { splits.reduce(0) { $0 + Money.outstanding(for: $1) } }
+    /// Outstanding per currency, formatted — "$50.14" or "$50.14 + €12.00" when the history mixes currencies.
+    var owedText: String? {
+        var byCurrency: [String: Int] = [:]
+        for s in splits { byCurrency[s.currencyCode, default: 0] += Money.outstanding(for: s) }
+        let parts = byCurrency.filter { $0.value > 0 }.sorted { $0.key < $1.key }.map { $0.value.money($0.key) }
+        return parts.isEmpty ? nil : parts.joined(separator: " + ")
+    }
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -38,7 +44,7 @@ struct HomeView: View {
                                 HStack {
                                     Text("History").font(Theme.disp(18)).foregroundStyle(Theme.ink)
                                     Spacer()
-                                    if owed > 0 { Text("\(owed.money) still owed to you").font(Theme.text(12, .extrabold)).foregroundStyle(Theme.muted) }
+                                    if let owedText { Text("\(owedText) still owed to you").font(Theme.text(12, .extrabold)).foregroundStyle(Theme.muted) }
                                 }.padding(.horizontal, 4)
                                 ForEach(splits) { split in
                                     Button { path = [route(for: split)] } label: { HistoryRow(split: split) }.buttonStyle(PressStyle())
@@ -100,6 +106,7 @@ struct HomeView: View {
         s.taxCents = r.taxCents ?? 0
         s.tipCents = r.tipCents ?? 0
         s.printedSubtotalCents = r.subtotalCents
+        s.currencyCode = r.currencyCode
         s.receiptImage = image.jpegData(compressionQuality: 0.6)
         s.parseTrace = ScanTrace.shared.text
         for (i, it) in r.items.enumerated() { s.items.append(LineItem(name: it.name, quantity: it.quantity, priceCents: it.priceCents, order: i)) }
@@ -129,13 +136,13 @@ struct HistoryRow: View {
             }
             Spacer()
             VStack(alignment: .trailing, spacing: 4) {
-                Text(split.totalCents.money).font(Theme.disp(18)).foregroundStyle(Theme.ink).monospacedDigit()
+                Text(split.totalCents.money(split.currencyCode)).font(Theme.disp(18)).foregroundStyle(Theme.ink).monospacedDigit()
                 if split.people.count < 2 {
                     StatusTag(text: "unfinished", color: Theme.muted)
                 } else if outstanding == 0 {
                     StatusTag(text: "all paid", color: Theme.green)
                 } else if owing.count == 1 {
-                    StatusTag(text: "\(owing[0].name) owes \(outstanding.money)", color: Theme.amber)
+                    StatusTag(text: "\(owing[0].name) owes \(outstanding.money(split.currencyCode))", color: Theme.amber)
                 } else {
                     StatusTag(text: "\(owing.count) still owe", color: Theme.amber)
                 }

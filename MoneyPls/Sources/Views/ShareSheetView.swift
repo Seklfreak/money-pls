@@ -45,8 +45,8 @@ struct ShareSheetView: View {
     }
 
     private func text(for bill: PersonBill) -> String {
-        let lines = bill.lines.map { "\($0.label) \($0.cents.money)" }.joined(separator: " · ")
-        return "\(bill.person.name) — \(split.displayTitle): \(bill.totalCents.money) pls (to \(split.payer?.name ?? "me"))\n\(lines)"
+        let lines = bill.lines.map { "\($0.label) \($0.cents.money(bill.currency))" }.joined(separator: " · ")
+        return "\(bill.person.name) — \(split.displayTitle): \(bill.totalCents.money(bill.currency)) pls (to \(split.payer?.name ?? "me"))\n\(lines)"
     }
 
     private func share() {
@@ -72,7 +72,7 @@ struct ShareCard: View {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("MONEY PLS").font(Theme.disp(13)).foregroundStyle(Theme.trayDark).kerning(0.5)
-                    Text("\(bill.person.name),\n\(bill.totalCents.money) pls").font(Theme.disp(26, .bold)).foregroundStyle(Theme.ink).lineSpacing(2)
+                    Text("\(bill.person.name),\n\(bill.totalCents.money(bill.currency)) pls").font(Theme.disp(26, .bold)).foregroundStyle(Theme.ink).lineSpacing(2)
                     Text("\(split.displayTitle) · to \(split.payer?.name ?? "me")").font(Theme.text(12)).foregroundStyle(Theme.muted)
                 }.padding(.bottom, 16)
                 Spacer()
@@ -81,7 +81,7 @@ struct ShareCard: View {
             .padding(EdgeInsets(top: 18, leading: 20, bottom: 0, trailing: 20))
             .background(LinearGradient(colors: [Color(hex: 0xffe0cf), Color(hex: 0xffd0d8)], startPoint: .top, endPoint: .bottom))
             VStack(spacing: 4) {
-                ForEach(bill.lines) { l in HStack { Text(l.label); Spacer(); Text(l.cents.money).monospacedDigit() } }
+                ForEach(bill.lines) { l in HStack { Text(l.label); Spacer(); Text(l.cents.money(bill.currency)).monospacedDigit() } }
             }
             .font(Theme.text(13)).foregroundStyle(Theme.body)
             .padding(EdgeInsets(top: 14, leading: 20, bottom: 18, trailing: 20))
