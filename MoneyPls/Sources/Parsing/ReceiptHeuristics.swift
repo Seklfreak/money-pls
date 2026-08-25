@@ -14,8 +14,9 @@ enum Heuristics {
                         "check #", "server", "ticket", "authorization", "receipt:", "station"]
     // Summary-line keywords, English plus the languages of receipts people bring home. CJK ones are matched
     // by containment, Latin ones as whole words.
-    static let subtotalWords = ["subtotal", "sub total", "zwischensumme", "sous-total", "subtotaal", "小計", "小计", "소계"]
-    static let totalWords = ["total", "amount due", "balance due", "gesamt", "summe", "totaal", "montant", "合計", "合计", "総計", "합계", "총액"]
+    // "btotal" / "otal due": the document crop sometimes shaves the first letters off the left column.
+    static let subtotalWords = ["subtotal", "sub total", "btotal", "zwischensumme", "sous-total", "subtotaal", "小計", "小计", "소계"]
+    static let totalWords = ["total", "otal due", "otal:", "amount due", "balance due", "gesamt", "summe", "totaal", "montant", "合計", "合计", "総計", "합계", "총액"]
     static let taxRe = #"\b(tax|mwst|ust|tva|iva|vat|btw|gst|hst)\b"#
     static let taxWords = ["消費税", "税", "부가세"]
     static let tipRe = #"\b(tip|gratuity|service|trinkgeld|pourboire)\b"#
@@ -104,7 +105,13 @@ enum Heuristics {
         func money(_ s: String) -> (Int, Range<String.Index>)? { Heuristics.money(s, digits: digits) }
         var pendingName: String?
         var pendingQty: Int?
-        var pendingPrice: (Int, Int)?
+        // A price with no Latin name yet: (price, qty, the CJK text it came with — used as the name if no
+        // English line claims it).
+        var pendingPrice: (price: Int, qty: Int, name: String?)?
+        func flushPending() {
+            guard let pp = pendingPrice, let n = pp.name else { return }
+            r.items.append(ParsedItem(name: n, quantity: pp.qty, priceCents: pp.price)); pendingPrice = nil
+        }
         // A receipt with hardly any Latin lines (Japanese, Chinese-only) names its items in CJK: keep that text
         // instead of treating it as the sub-label of an English line that never comes.
         let latinLines = lines.filter { $0.filter { $0.isLetter && $0.isASCII }.count >= 3 }.count
@@ -151,7 +158,7 @@ enum Heuristics {
             guard var (price, pr) = money(line) else {
                 let latin = latin(line)
                 let flat = latin.replacingOccurrences(of: "\t", with: "")
-                if isKeyword, let (pp, _) = pendingPrice {   // price column drifted a row: the pending price is this line's
+                if isKeyword, let pp = pendingPrice?.price {   // price column drifted a row: the pending price is this line's
                     pendingPrice = nil
                     if isSubtotal(bare) { r.subtotalCents = pp; continue }
                     if isTotal(bare) { r.totalCents = pp; break }
@@ -165,9 +172,9 @@ enum Heuristics {
                     continue
                 }
                 if flat.count >= 3 {
-                    if let (pp, pq) = pendingPrice {
+                    if let pp = pendingPrice {
                         let (name, q) = nameAndQty(latin)
-                        r.items.append(ParsedItem(name: name, quantity: q ?? pq, priceCents: pp))
+                        r.items.append(ParsedItem(name: name, quantity: q ?? pp.qty, priceCents: pp.price))
                         pendingPrice = nil; pendingName = nil; pendingQty = nil
                     } else { dropPending(); pendingName = latin }
                 }
@@ -175,10 +182,30 @@ enum Heuristics {
             }
             var text = line; text.removeSubrange(pr)
             let tl = text.lowercased()
+            let cjkName = text.replacingOccurrences(of: "\t", with: " ").trimmingCharacters(in: .whitespaces)
             text = latin(text)
-            if let (pp, pq) = pendingPrice, !text.isEmpty {   // drifted column: swap — the pending price is ours, ours belongs to the next line
-                pendingPrice = (price, 1); price = pp; _ = pq
+            let summary = isSubtotal(tl) || isTotal(tl) || isTax(tl) || isTip(tl)
+            // Column-table receipts ("Unit Qty Price Vip Amount") leave rows of bare numbers once the name and the
+            // amount have gone to other lines: "2 49.99 | 46.99". The leading number is the quantity; the rest are
+            // other columns, not items.
+            if text.range(of: #"^[\d.,\s]+$"#, options: .regularExpression) != nil, text.contains(where: { $0 == "." || $0 == "," }) {
+                let q = Int(text.split(whereSeparator: \.isWhitespace).first ?? "").flatMap { $0 > 0 && $0 < 100 ? $0 : nil }
+                if let pp = pendingPrice, let n = pp.name {
+                    r.items.append(ParsedItem(name: n, quantity: q ?? pp.qty, priceCents: pp.price)); pendingPrice = nil
+                } else if let p = pendingName {
+                    r.items.append(ParsedItem(name: nameAndQty(p).0, quantity: q ?? 1, priceCents: price)); pendingName = nil
+                } else if let q, !r.items.isEmpty {
+                    r.items[r.items.count - 1].quantity = q
+                }
+                pendingQty = nil
+                continue
             }
+            if let pp = pendingPrice, !text.isEmpty {
+                if summary || pp.name == nil {   // drifted column: swap — the pending price is ours, ours belongs to the next line
+                    pendingPrice = (price, 1, nil); price = pp.price
+                } else { flushPending() }   // the held CJK-named line was an item after all
+            }
+            if summary { dropPending(); pendingQty = nil }   // nothing above a summary line is waiting for a price
             if isSubtotal(tl) { r.subtotalCents = price; continue }
             if isTotal(tl) { r.totalCents = price; break }
             if isTax(tl) { r.taxCents = (r.taxCents ?? 0) + price; continue }
@@ -188,10 +215,35 @@ enum Heuristics {
             if name.isEmpty, let p = pendingName { let (pn, pq) = nameAndQty(p); name = pn; q = q ?? pq; pendingName = nil }
             if let q { qty = q }
             dropPending(); pendingQty = nil
-            if name.isEmpty { pendingPrice = (price, qty); continue }
+            if name.isEmpty {
+                // Past the subtotal, an amount with no label is tax or a fee whose label the OCR dropped.
+                if r.subtotalCents != nil { r.taxCents = (r.taxCents ?? 0) + price; continue }
+                pendingPrice = (price, qty, cjkName.contains(where: \.isLetter) ? cjkName : nil); continue
+            }
             r.items.append(ParsedItem(name: name, quantity: qty, priceCents: price))
         }
+        flushPending()
         if r.subtotalCents == nil, let total = r.totalCents { r.subtotalCents = total - (r.taxCents ?? 0) - (r.tipCents ?? 0) }
         return r
+    }
+
+    /// A receipt with extra price columns (unit price, member price) can leave the item sum above the printed
+    /// subtotal. If exactly one cheapest way to drop items lands on the subtotal, take it — dropping a line whose
+    /// "name" is just numbers is nearly free, a real name costs more, and an ambiguous answer is no answer.
+    static func trimToSubtotal(_ r: inout ParsedReceipt) -> Bool {
+        guard let subtotal = r.subtotalCents, r.itemSumCents > subtotal, (1...18).contains(r.items.count) else { return false }
+        let surplus = r.itemSumCents - subtotal
+        func weak(_ it: ParsedItem) -> Bool { it.name.filter(\.isLetter).count < 3 }
+        let cost = r.items.map { weak($0) ? 1 : 3 }
+        var best: (cost: Int, mask: Int, ways: Int)?
+        for mask in 1..<(1 << r.items.count) {
+            var sum = 0, c = 0
+            for i in 0..<r.items.count where mask & (1 << i) != 0 { sum += r.items[i].priceCents; c += cost[i] }
+            guard sum == surplus else { continue }
+            if best == nil || c < best!.cost { best = (c, mask, 1) } else if c == best!.cost { best!.ways += 1 }
+        }
+        guard let b = best, b.ways == 1, b.cost <= 9 else { return false }
+        r.items = r.items.enumerated().filter { b.mask & (1 << $0.offset) == 0 }.map(\.element)
+        return true
     }
 }

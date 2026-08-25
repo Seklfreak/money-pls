@@ -96,6 +96,7 @@ enum ReceiptParser {
                 }
             }
         }
+        if !receipt.reconciles, Heuristics.trimToSubtotal(&receipt) { trace("dropped extra-column lines to meet the subtotal") }
         for (i, l) in bestLines.enumerated() { trace("L\(i): \(l.replacingOccurrences(of: "\t", with: " ⇥ "))") }
         receipt.lines = bestLines
         for it in receipt.items { trace("ITEM \(it.quantity) × \(it.name) = \(it.priceCents)") }
