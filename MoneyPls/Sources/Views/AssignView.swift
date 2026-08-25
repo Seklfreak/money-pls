@@ -22,14 +22,19 @@ struct AssignView: View {
                     Text("Who had what?").font(Theme.disp(30, .bold)).foregroundStyle(Theme.ink)
                     Text("Everything's shared unless you tap it").font(Theme.text(14)).foregroundStyle(Theme.muted)
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                HStack(spacing: 8) {
-                    let st = stats
-                    Pill { Image(systemName: "person.2.fill").font(.system(size: 11)); Text("\(st.all) for all") }
-                    Pill { Circle().fill(Theme.avatarColor(1)).frame(width: 10, height: 10); Text("\(st.solo) solo") }
-                    Pill { Circle().fill(Theme.mint).frame(width: 10, height: 10); Text("\(st.shared) shared") }
-                    if st.nobody > 0 { Pill(bg: Theme.amberBg, fg: Theme.amber, shadow: false) { Text("\(st.nobody) nobody") } }
-                    Spacer()
+                // Pills never wrap: when the amber "nobody" pill appears the row scrolls instead of reflowing and shoving the tray.
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        let st = stats
+                        Pill { Image(systemName: "person.2.fill").font(.system(size: 11)); Text("\(st.all) for all") }
+                        Pill { Circle().fill(Theme.avatarColor(1)).frame(width: 10, height: 10); Text("\(st.solo) solo") }
+                        Pill { Circle().fill(Theme.mint).frame(width: 10, height: 10); Text("\(st.shared) shared") }
+                        if st.nobody > 0 { Pill(bg: Theme.amberBg, fg: Theme.amber, shadow: false) { Text("\(st.nobody) nobody") } }
+                    }
+                    .lineLimit(1).fixedSize(horizontal: true, vertical: false)
+                    .padding(.horizontal, 2).padding(.bottom, 3)
                 }
+                .padding(.horizontal, -2).frame(height: 34)
                 ScrollView {
                     Tray {
                         Text(split.title).font(Theme.disp(16, .bold)).foregroundStyle(Theme.ink)
@@ -56,7 +61,10 @@ struct AssignView: View {
                     if let item = selected {
                         HStack {
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("\(item.displayName) · \(item.priceCents.money)").font(Theme.disp(18)).foregroundStyle(Theme.ink).lineLimit(1)
+                                HStack(spacing: 6) {
+                                    Text(item.displayName).lineLimit(1)
+                                    Text("· \(item.priceCents.money)").monospacedDigit().fixedSize().layoutPriority(1)
+                                }.font(Theme.disp(18)).foregroundStyle(Theme.ink)
                                 Text(shareText(item)).font(Theme.text(13)).foregroundStyle(Theme.muted)
                             }
                             Spacer()

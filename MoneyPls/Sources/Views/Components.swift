@@ -174,6 +174,8 @@ struct Tray<Content: View>: View {
             .padding(EdgeInsets(top: 14, leading: 10, bottom: 18, trailing: 10))
             .raised(RoundedRectangle(cornerRadius: 22, style: .continuous), fill: Theme.tray, shadow: Theme.trayDark, depth: 8)
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Theme.trayLight, lineWidth: 3).mask(Rectangle().frame(height: 6).frame(maxHeight: .infinity, alignment: .top)))
+            // Flatten first: without this SwiftUI shadows every child separately and every label and field on the paper gets its own halo.
+            .compositingGroup()
             .shadow(color: Color(hex: 0x785028).opacity(0.25), radius: 15, y: 16)
     }
 }

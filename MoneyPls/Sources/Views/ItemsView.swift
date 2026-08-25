@@ -101,9 +101,18 @@ struct ItemRow: View {
                 .font(Theme.text(14)).foregroundStyle(Theme.ink).frame(width: 44, height: 40)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Theme.bg))
             CentsField(cents: $item.priceCents).frame(width: 72, height: 40)
+            // `.swipeActions` only works inside a List, so the delete lives here: visible while the line is being edited.
+            if focus.wrappedValue == item.id {
+                Button(action: delete) {
+                    Image(systemName: "xmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(Theme.faint)
+                        .frame(width: 28, height: 40).background(RoundedRectangle(cornerRadius: 10).fill(Theme.bg))
+                }
+                .accessibilityLabel("Delete line")
+                .transition(.scale.combined(with: .opacity))
+            }
         }
         .padding(.vertical, 6)
-        .swipeActions { Button(role: .destructive, action: delete) { Label("Delete", systemImage: "trash") } }
+        .animation(.snappy, value: focus.wrappedValue == item.id)
         .contextMenu { Button(role: .destructive, action: delete) { Label("Delete line", systemImage: "trash") } }
     }
 }

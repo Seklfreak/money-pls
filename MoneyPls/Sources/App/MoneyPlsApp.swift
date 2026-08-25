@@ -23,6 +23,8 @@ struct MoneyPlsApp: App {
             HomeView()
                 .tint(Theme.pink)
                 .preferredColorScheme(.light)
+                // Fonts scale with Dynamic Type; the tray's fixed columns aren't reflowed for the AX sizes yet, so cap there.
+                .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
         .modelContainer(for: [Split.self, Person.self, LineItem.self])
     }

@@ -31,10 +31,22 @@ enum Theme {
     static func avatarColor(_ index: Int) -> Color { avatarColors[((index % avatarColors.count) + avatarColors.count) % avatarColors.count] }
 
     static func disp(_ size: CGFloat, _ weight: DispWeight = .semibold) -> Font {
-        .custom(weight.name, size: size)
+        .custom(weight.name, size: size, relativeTo: style(for: size))
     }
     static func text(_ size: CGFloat, _ weight: TextWeight = .bold) -> Font {
-        .custom(weight.name, size: size)
+        .custom(weight.name, size: size, relativeTo: style(for: size))
+    }
+    /// Dynamic Type anchor by design size, so every custom font scales with the user's text size setting.
+    private static func style(for size: CGFloat) -> Font.TextStyle {
+        switch size {
+        case 28...: .largeTitle
+        case 22..<28: .title
+        case 17..<22: .title3
+        case 15..<17: .body
+        case 13..<15: .subheadline
+        case 12..<13: .footnote
+        default: .caption
+        }
     }
     enum DispWeight {
         case medium, semibold, bold
