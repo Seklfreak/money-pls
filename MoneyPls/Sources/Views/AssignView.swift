@@ -96,7 +96,8 @@ struct AssignView: View {
                         Text("Tap a line to change who had it. Long-press to claim it yourself.")
                             .font(Theme.text(13)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
                     }
-                    PrimaryButton(title: "Show me the bill") { path.append(.bill(split.id)) }
+                    // The bill is the finish line; whether we came from Items or back from the bill, it stands alone.
+                    PrimaryButton(title: "Show me the bill") { path = [.bill(split.id)] }
                         .disabled(!split.unassignedItems.isEmpty).opacity(split.unassignedItems.isEmpty ? 1 : 0.5)
                 }
                 .animation(.snappy, value: selected?.id)

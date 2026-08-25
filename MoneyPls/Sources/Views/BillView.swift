@@ -21,6 +21,10 @@ struct BillView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Who owes what").font(Theme.disp(30, .bold)).foregroundStyle(Theme.ink)
                             Text("\(split.displayTitle) · \(payer?.name ?? "You") paid \(split.totalCents.money)").font(Theme.text(14)).foregroundStyle(Theme.muted)
+                            Button { path.append(.assign(split.id)) } label: {
+                                HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward").font(.system(size: 11, weight: .bold)); Text("Change who had what") }
+                                    .font(Theme.text(13, .extrabold)).foregroundStyle(Theme.pink)
+                            }.padding(.top, 4)
                         }
                         Spacer()
                         if bills.filter({ $0.person.id != payer?.id && !$0.person.settled }).count > 1 {
