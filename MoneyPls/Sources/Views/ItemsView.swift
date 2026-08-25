@@ -1,5 +1,7 @@
 import SwiftUI
 import SwiftData
+import Translation
+import NaturalLanguage
 
 /// "Look right?" — editable parsed receipt on the tray.
 struct ItemsView: View {
@@ -7,6 +9,9 @@ struct ItemsView: View {
     @Binding var path: [Route]
     @Environment(\.modelContext) private var context
     @State private var showPeople = false
+    @State private var translation: TranslationSession.Configuration?
+    @State private var translations: [String: String] = [:]
+    @State private var translationFailure: String?
     @FocusState private var focus: UUID?
 
     var body: some View {
@@ -23,7 +28,15 @@ struct ItemsView: View {
                 TrayScroll {
                     Tray {
                         HStack(spacing: 8) {
-                            Color.clear.frame(width: 52, height: 1)
+                            // Translate names (on device) — only offered while some name is in a script we could translate.
+                            if split.items.contains(where: { $0.needsTranslation && $0.translatedName == nil }) {
+                                Button { translate() } label: {
+                                    Image(systemName: "character.book.closed").font(.system(size: 13, weight: .bold)).foregroundStyle(Theme.pink)
+                                        .frame(width: 52, height: 24).background(Capsule().fill(Theme.bg))
+                                }.accessibilityLabel("Translate names")
+                            } else {
+                                Color.clear.frame(width: 52, height: 1)
+                            }
                             TextField("Where was this?", text: $split.title).font(Theme.disp(16, .bold)).multilineTextAlignment(.center).foregroundStyle(Theme.ink)
                             // Currency is read off the receipt; this is the override when it guessed wrong. Amounts don't convert.
                             Menu {
@@ -94,6 +107,13 @@ struct ItemsView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         .environment(\.currency, split.currencyCode)
+        .translateNames($translation, names: untranslated, results: $translations, failure: $translationFailure)
+        .alert("Translation unavailable", isPresented: Binding(get: { translationFailure != nil }, set: { if !$0 { translationFailure = nil } })) {
+            Button("OK") {}
+        } message: { Text(translationFailure ?? "") }
+        .onChange(of: translations) { _, new in
+            for item in split.items { if let t = new[item.id.uuidString] { item.translatedName = t } }
+        }
         .sheet(isPresented: $showPeople) {
             PeopleSheet(split: split) { showPeople = false; path.append(.assign(split.id)) }
                 .presentationDetents([.large]).presentationDragIndicator(.hidden)
@@ -109,6 +129,21 @@ struct ItemsView: View {
         return "Items after parse: \(split.items.count), sum \(split.subtotalCents.money(c)), printed subtotal \(split.printedSubtotalCents?.money(c) ?? "none"), currency \(c)"
     }
     private var tipLabel: String { tipPercent.map { "TIP · \($0)%" } ?? "TIP" }
+    private var untranslated: [String: String] {
+        Dictionary(uniqueKeysWithValues: split.items.filter { $0.needsTranslation && $0.translatedName == nil }.map { ($0.id.uuidString, $0.name) })
+    }
+    private func translate() {
+        // One session per source language: detect the script ourselves and translate the most common one first;
+        // the button stays until every name is done, so a second tap covers a mixed receipt.
+        let recognizer = NLLanguageRecognizer()
+        var votes: [String: Int] = [:]
+        for name in untranslated.values {
+            recognizer.reset(); recognizer.processString(name)
+            if let l = recognizer.dominantLanguage?.rawValue { votes[l, default: 0] += 1 }
+        }
+        guard let source = votes.max(by: { $0.value < $1.value })?.key else { return }
+        translation = TranslationSession.Configuration(source: Locale.Language(identifier: source), target: Locale.current.language)
+    }
     private func addItem() {
         let item = LineItem(name: "", quantity: 1, priceCents: 0, order: (split.items.map(\.order).max() ?? -1) + 1)
         split.items.append(item)
@@ -122,10 +157,14 @@ struct ItemRow: View {
     let delete: () -> Void
     var body: some View {
         HStack(spacing: 8) {
-            TextField("Item", text: $item.name, axis: .vertical).lineLimit(1...3).focused(focus, equals: item.id)
-                .font(Theme.text(14)).foregroundStyle(Theme.ink)
-                .padding(.horizontal, 10).padding(.vertical, 8).frame(minHeight: 40).frame(maxWidth: .infinity)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Theme.bg))
+            VStack(alignment: .leading, spacing: 2) {
+                TextField("Item", text: $item.name, axis: .vertical).lineLimit(1...3).focused(focus, equals: item.id)
+                    .font(Theme.text(14)).foregroundStyle(Theme.ink)
+                if let t = item.subtitle { Text(t).font(Theme.text(11)).foregroundStyle(Theme.muted).lineLimit(2) }
+            }
+            .padding(.horizontal, 10).padding(.vertical, 8).frame(minHeight: 40).frame(maxWidth: .infinity, alignment: .leading)
+            .background(RoundedRectangle(cornerRadius: 10).fill(Theme.bg))
+            .onChange(of: item.name) { old, new in if item.translatedName != nil, old != new { item.translatedName = nil } }
             TextField("1", value: $item.quantity, format: .number).keyboardType(.numberPad).multilineTextAlignment(.center)
                 .font(Theme.text(14)).foregroundStyle(Theme.ink).frame(width: 44, height: 40)
                 .background(RoundedRectangle(cornerRadius: 10).fill(Theme.bg))

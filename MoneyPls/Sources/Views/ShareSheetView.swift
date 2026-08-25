@@ -45,7 +45,7 @@ struct ShareSheetView: View {
     }
 
     private func text(for bill: PersonBill) -> String {
-        let lines = bill.lines.map { "\($0.label) \($0.cents.money(bill.currency))" }.joined(separator: " · ")
+        let lines = bill.lines.map { "\($0.label)\($0.sublabel.map { " (\($0))" } ?? "") \($0.cents.money(bill.currency))" }.joined(separator: " · ")
         return "\(bill.person.name) — \(split.displayTitle): \(bill.totalCents.money(bill.currency)) pls (to \(split.payer?.name ?? "me"))\n\(lines)"
     }
 
@@ -81,7 +81,15 @@ struct ShareCard: View {
             .padding(EdgeInsets(top: 18, leading: 20, bottom: 0, trailing: 20))
             .background(LinearGradient(colors: [Color(hex: 0xffe0cf), Color(hex: 0xffd0d8)], startPoint: .top, endPoint: .bottom))
             VStack(spacing: 4) {
-                ForEach(bill.lines) { l in HStack { Text(l.label); Spacer(); Text(l.cents.money(bill.currency)).monospacedDigit() } }
+                ForEach(bill.lines) { l in
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(l.label)
+                            if let t = l.sublabel { Text(t).font(Theme.text(11)).foregroundStyle(Theme.muted) }
+                        }
+                        Spacer(); Text(l.cents.money(bill.currency)).monospacedDigit()
+                    }
+                }
             }
             .font(Theme.text(13)).foregroundStyle(Theme.body)
             .padding(EdgeInsets(top: 14, leading: 20, bottom: 18, trailing: 20))

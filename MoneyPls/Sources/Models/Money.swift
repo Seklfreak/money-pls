@@ -4,6 +4,8 @@ import Foundation
 struct ShareLine: Identifiable {
     let id = UUID()
     let label: String
+    /// Translated item name, shown under the label on cards.
+    var sublabel: String?
     let cents: Int
 }
 
@@ -77,7 +79,7 @@ enum Money {
                 let parts = divide(item.priceCents, into: idx.count, offset: index)
                 for (k, i) in idx.enumerated() {
                     let label = idx.count > 1 ? "\(item.displayName) · \(fraction(idx.count))" : item.displayName
-                    lines[i].append(ShareLine(label: label, cents: parts[k]))
+                    lines[i].append(ShareLine(label: label, sublabel: item.subtitle, cents: parts[k]))
                     soloCents[i] += parts[k]
                 }
             }

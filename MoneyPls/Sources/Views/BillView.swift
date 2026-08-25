@@ -86,7 +86,13 @@ struct BillCard: View {
             .padding(.horizontal, 16).padding(.vertical, 14).background(color.opacity(0.13))
             VStack(spacing: 4) {
                 ForEach(bill.lines) { l in
-                    HStack { Text(l.label); Spacer(); Text(l.cents.money(bill.currency)).monospacedDigit() }
+                    HStack(alignment: .firstTextBaseline) {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(l.label)
+                            if let t = l.sublabel { Text(t).font(Theme.text(11)).foregroundStyle(Theme.muted) }
+                        }
+                        Spacer(); Text(l.cents.money(bill.currency)).monospacedDigit()
+                    }
                 }
             }
             .font(Theme.text(13)).foregroundStyle(Theme.body)

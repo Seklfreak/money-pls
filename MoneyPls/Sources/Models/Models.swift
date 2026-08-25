@@ -56,6 +56,8 @@ final class LineItem {
     /// Default: shared by everyone. When false, `assigneeIDs` lists who had it (empty = nobody, blocks the bill).
     var everyone: Bool = true
     var assigneeIDs: [UUID] = []
+    /// On-device translation of `name`, filled in on request; cleared when the name is edited.
+    var translatedName: String?
     var split: Split?
 
     init(name: String, quantity: Int, priceCents: Int, order: Int) {
@@ -63,4 +65,11 @@ final class LineItem {
     }
     var unitCents: Int { quantity > 0 ? priceCents / quantity : priceCents }
     var displayName: String { quantity > 1 ? "\(name) ×\(quantity)" : name }
+    /// Names in a non-Latin script are the ones worth translating.
+    var needsTranslation: Bool { name.contains { $0.isLetter && !$0.isASCII && !"äöüßéèêàçñøåæœ".contains($0.lowercased()) } }
+    /// The translation, when it adds something the name doesn't already say.
+    var subtitle: String? {
+        guard let t = translatedName?.trimmingCharacters(in: .whitespaces), !t.isEmpty, t.caseInsensitiveCompare(name) != .orderedSame else { return nil }
+        return t
+    }
 }

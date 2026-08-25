@@ -65,6 +65,7 @@ struct AssignView: View {
                                     Text(item.displayName).lineLimit(1)
                                     Text("· \(item.priceCents.money(split.currencyCode))").monospacedDigit().fixedSize().layoutPriority(1)
                                 }.font(Theme.disp(18)).foregroundStyle(Theme.ink)
+                                if let t = item.subtitle { Text(t).font(Theme.text(12)).foregroundStyle(Theme.muted).lineLimit(1) }
                                 Text(shareText(item)).font(Theme.text(13)).foregroundStyle(Theme.muted)
                             }
                             Spacer()
@@ -151,7 +152,10 @@ struct ReceiptLine: View {
         let rail: Color = item.everyone ? .clear : who.count == 1 ? Theme.avatarColor(who[0].colorIndex) : who.isEmpty ? Theme.amber : Theme.sand
         let tint: Color = selected ? Theme.amberBg : item.everyone ? .clear : who.count == 1 ? Theme.avatarColor(who[0].colorIndex).opacity(0.12) : who.isEmpty ? Theme.amberBg : Color(hex: 0xfaf3ea)
         HStack(spacing: 8) {
-            Text(item.displayName).font(Theme.text(14)).foregroundStyle(Theme.ink).lineLimit(2).multilineTextAlignment(.leading)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(item.displayName).font(Theme.text(14)).foregroundStyle(Theme.ink).lineLimit(2).multilineTextAlignment(.leading)
+                if let t = item.subtitle { Text(t).font(Theme.text(11)).foregroundStyle(Theme.muted).lineLimit(1) }
+            }
             Spacer(minLength: 4)
             if item.everyone {
                 HStack(spacing: 4) { Image(systemName: "person.2.fill").font(.system(size: 10)); Text("ALL").kerning(0.6) }
