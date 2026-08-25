@@ -18,10 +18,19 @@ struct ShareSheetView: View {
                 Text(single.map { "Ask \($0.person.name) for money pls" } ?? "Ask everyone for money pls").font(Theme.disp(24, .bold)).foregroundStyle(Theme.ink)
                 Text(single != nil ? "A little card they can read without opening anything." : "\(bills.count) cards, one per person.").font(Theme.text(13)).foregroundStyle(Theme.muted)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 14) { ForEach(bills) { ShareCard(split: split, bill: $0).frame(width: 320) } }.padding(.horizontal, 2).padding(.vertical, 20)
-            }.scrollTargetBehavior(.viewAligned).scrollClipDisabled()
-            Spacer(minLength: 0)
+            if let single {
+                // One card: let it breathe — full width, centered in the space above the buttons.
+                Spacer(minLength: 0)
+                ShareCard(split: split, bill: single).padding(.vertical, 20)
+                Spacer(minLength: 0)
+            } else {
+                Spacer(minLength: 0)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 14) { ForEach(bills) { ShareCard(split: split, bill: $0).frame(width: 320) } }
+                        .scrollTargetLayout().padding(.horizontal, 2).padding(.vertical, 20)
+                }.scrollTargetBehavior(.viewAligned).scrollClipDisabled()
+                Spacer(minLength: 0)
+            }
             VStack(spacing: 10) {
                 PrimaryButton(title: single != nil ? "Send the card" : "Send the cards", icon: "square.and.arrow.up") { share() }
                 SecondaryButton(title: copied ? "Copied!" : "Copy as text") {
