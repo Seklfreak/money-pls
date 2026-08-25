@@ -72,19 +72,26 @@ struct AssignView: View {
                                 Pill(bg: item.everyone ? Theme.ink : .white, fg: item.everyone ? Theme.bg : Theme.body) { Image(systemName: "person.2.fill").font(.system(size: 11)); Text("Everyone") }
                             }
                         }
-                        HStack(spacing: 8) {
-                            ForEach(split.sortedPeople) { p in
-                                let on = item.everyone || item.assigneeIDs.contains(p.id)
-                                Button { toggle(p, on: item) } label: {
-                                    VStack(spacing: 6) {
-                                        Avatar(p, size: 56, dim: !on, check: on)
-                                            .background(Circle().fill(Theme.avatarColor(p.colorIndex).opacity(on ? 0.6 : 0)).offset(y: 4))
-                                            .offset(y: on ? -4 : 0)
-                                        Text(p.name).font(Theme.text(12, on ? .extrabold : .bold)).foregroundStyle(on ? Theme.ink : Theme.faint).lineLimit(1)
-                                    }.frame(maxWidth: .infinity)
-                                }.buttonStyle(PressStyle())
+                        // Up to five people share the width; beyond that, cells are 2/11 wide so the sixth peeks
+                        // in half-cut — the only hint that the row scrolls.
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 8) {
+                                ForEach(split.sortedPeople) { p in
+                                    let on = item.everyone || item.assigneeIDs.contains(p.id)
+                                    Button { toggle(p, on: item) } label: {
+                                        VStack(spacing: 6) {
+                                            Avatar(p, size: 56, dim: !on, check: on)
+                                                .background(Circle().fill(Theme.avatarColor(p.colorIndex).opacity(on ? 0.6 : 0)).offset(y: 4))
+                                                .offset(y: on ? -4 : 0)
+                                            Text(p.name).font(Theme.text(12, on ? .extrabold : .bold)).foregroundStyle(on ? Theme.ink : Theme.faint).lineLimit(1)
+                                        }
+                                        .containerRelativeFrame(.horizontal, count: split.people.count > 5 ? 11 : max(split.people.count, 1),
+                                                                span: split.people.count > 5 ? 2 : 1, spacing: 8)
+                                    }.buttonStyle(PressStyle())
+                                }
                             }
                         }
+                        .scrollClipDisabled()
                     } else {
                         Text("Tap a line to change who had it. Long-press to claim it yourself.")
                             .font(Theme.text(13)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
