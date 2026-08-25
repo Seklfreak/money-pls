@@ -42,6 +42,8 @@ struct HomeView: View {
                                 }.padding(.horizontal, 4)
                                 ForEach(splits) { split in
                                     Button { path = [route(for: split)] } label: { HistoryRow(split: split) }.buttonStyle(PressStyle())
+                                        // Preview shape matches the card, including its raised edge (kept inside the frame below).
+                                        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 22, style: .continuous))
                                         .contextMenu { Button(role: .destructive) { context.delete(split) } label: { Label("Delete", systemImage: "trash") } }
                                 }
                             }
@@ -140,6 +142,7 @@ struct HistoryRow: View {
         }
         .padding(.horizontal, 16).padding(.vertical, 14)
         .card()
+        .padding(.bottom, 4)   // room for the raised edge so the context-menu preview doesn't cut it off
     }
 }
 
