@@ -12,6 +12,8 @@ final class Split {
     /// Subtotal as printed on the receipt, to flag parses that don't add up.
     var printedSubtotalCents: Int?
     @Attribute(.externalStorage) var receiptImage: Data?
+    /// Parse log of the scan this split came from, so a bad read can be reported later with the photo.
+    @Attribute(.externalStorage) var parseTrace: String?
     @Relationship(deleteRule: .cascade, inverse: \LineItem.split) var items: [LineItem] = []
     @Relationship(deleteRule: .cascade, inverse: \Person.split) var people: [Person] = []
 

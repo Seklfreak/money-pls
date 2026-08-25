@@ -3,9 +3,6 @@ import Vision
 import CoreImage
 import CoreGraphics
 import UIKit
-import os
-
-let parseLog = Logger(subsystem: "dev.winktech.moneypls", category: "parse")
 
 struct ParsedItem: Equatable { var name: String; var quantity: Int; var priceCents: Int }
 struct ParsedReceipt {
@@ -30,23 +27,24 @@ enum ReceiptParser {
 
     static func parse(_ image: UIImage, alreadyCropped: Bool) async throws -> ParsedReceipt {
         guard let cg = image.normalizedCGImage() else { throw ParseError.badImage }
-        parseLog.info("parse start \(cg.width)x\(cg.height) cropped=\(alreadyCropped)")
+        ScanTrace.shared.reset()
+        trace("parse start \(cg.width)x\(cg.height) cropped=\(alreadyCropped)")
         var source = cg
         var documentCropped = alreadyCropped
         if !alreadyCropped {
             do {
-                if let c = try await cropToDocument(cg) { source = c; documentCropped = true; parseLog.info("document crop \(c.width)x\(c.height)") }
-            } catch { parseLog.error("document crop failed: \(error)") }
+                if let c = try await cropToDocument(cg) { source = c; documentCropped = true; trace("document crop \(c.width)x\(c.height)") }
+            } catch { traceError("document crop failed: \(error)") }
         }
         var best: (turns: Int, result: OCRResult)?
         var candidates: [OCRResult] = []   // every pass we ran; the parse decides among them below
         for n in 0..<4 {
             do {
                 let r = try await ocr(rotated(source, quarterTurns: n))
-                parseLog.info("rotation \(n) lines=\(r.lines.count) score=\(r.score)")
+                trace("rotation \(n) lines=\(r.lines.count) score=\(r.score)")
                 candidates.append(r)
                 if best == nil || r.score > best!.result.score { best = (n, r) }
-            } catch { parseLog.error("ocr rotation \(n) failed: \(error)") }
+            } catch { traceError("ocr rotation \(n) failed: \(error)") }
         }
         guard var chosen = best else { throw ParseError.badImage }
         if !documentCropped, chosen.result.words.count >= 5 {
@@ -57,7 +55,7 @@ enum ReceiptParser {
                 for n in 0..<4 {   // the crop is small, so re-checking orientation is cheap
                     guard let r = try? await ocr(rotated(c, quarterTurns: n)) else { continue }
                     let head = r.lines.prefix(12).joined(separator: " | ").replacingOccurrences(of: "\t", with: " ")
-                    parseLog.info("text-cluster crop \(c.width)x\(c.height) rotation \(n) lines=\(r.lines.count) score=\(r.score) right=\(r.right) head=\(head)")
+                    trace("text-cluster crop \(c.width)x\(c.height) rotation \(n) lines=\(r.lines.count) score=\(r.score) right=\(r.right) head=\(head)")
                     candidates.append(r)
                     if r.score > chosen.result.score { chosen = (n, r) }
                 }
@@ -71,7 +69,7 @@ enum ReceiptParser {
             let alternatives = candidates.filter { $0.lines != chosen.result.lines }.sorted { $0.score > $1.score }
                 .map { (result: $0, parsed: Heuristics.parse(lines: $0.lines)) }
             if let alt = alternatives.first(where: { $0.parsed.reconciles && $0.parsed.items.count >= max(1, receipt.items.count / 2) }) {
-                parseLog.info("switching to a reconciling pass: score=\(alt.result.score) items=\(alt.parsed.items.count)")
+                trace("switching to a reconciling pass: score=\(alt.result.score) items=\(alt.parsed.items.count)")
                 receipt = alt.parsed; bestLines = alt.result.lines
             } else if let subtotal = receipt.subtotalCents, subtotal > receipt.itemSumCents {
                 // One line lost its price (typically the upright pass dropped a word the upside-down pass kept).
@@ -90,15 +88,15 @@ enum ReceiptParser {
                         }
                         if name == name.uppercased() { name = name.capitalized }
                         receipt.items.insert(ParsedItem(name: name, quantity: 1, priceCents: deficit), at: min(index, receipt.items.count))
-                        parseLog.info("recovered \(name) = \(deficit) from pass score=\(alt.result.score)")
+                        trace("recovered \(name) = \(deficit) from pass score=\(alt.result.score)")
                         break search
                     }
                 }
             }
         }
-        for (i, l) in bestLines.enumerated() { parseLog.info("L\(i): \(l.replacingOccurrences(of: "\t", with: " ⇥ "))") }
+        for (i, l) in bestLines.enumerated() { trace("L\(i): \(l.replacingOccurrences(of: "\t", with: " ⇥ "))") }
         receipt.lines = bestLines
-        for it in receipt.items { parseLog.info("ITEM \(it.quantity) × \(it.name) = \(it.priceCents)") }
+        for it in receipt.items { trace("ITEM \(it.quantity) × \(it.name) = \(it.priceCents)") }
         return receipt
     }
 

@@ -98,6 +98,7 @@ struct HomeView: View {
         s.tipCents = r.tipCents ?? 0
         s.printedSubtotalCents = r.subtotalCents
         s.receiptImage = image.jpegData(compressionQuality: 0.6)
+        s.parseTrace = ScanTrace.shared.text
         for (i, it) in r.items.enumerated() { s.items.append(LineItem(name: it.name, quantity: it.quantity, priceCents: it.priceCents, order: i)) }
         context.insert(s)
         return s

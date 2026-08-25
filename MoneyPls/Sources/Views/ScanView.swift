@@ -50,7 +50,10 @@ struct ProcessingView: View {
                     VStack(spacing: 10) {
                         PrimaryButton(title: "Try another photo", icon: "camera.fill", action: retry)
                         SecondaryButton(title: "Add items by hand") { done(ParsedReceipt()) }
-                        Button("Cancel") { done(nil) }.font(Theme.text(14, .extrabold)).foregroundStyle(Theme.faint).padding(.top, 4)
+                        HStack(spacing: 18) {
+                            Button("Cancel") { done(nil) }
+                            ReportScanButton(image: image, trace: ScanTrace.shared.text, context: status)
+                        }.font(Theme.text(14, .extrabold)).foregroundStyle(Theme.faint).padding(.top, 4)
                     }.padding(.horizontal, 32)
                 }
             }
@@ -64,7 +67,7 @@ struct ProcessingView: View {
             Task.detached(priority: .userInitiated) {
                 do {
                     var r = try await ReceiptParser.parse(image, alreadyCropped: cropped)
-                    parseLog.info("parsed \(r.items.count) items sum=\(r.itemSumCents) subtotal=\(r.subtotalCents ?? -1)")
+                    trace("parsed \(r.items.count) items sum=\(r.itemSumCents) subtotal=\(r.subtotalCents ?? -1)")
                     if !r.reconciles, r.subtotalCents != nil, ReceiptRepair.isAvailable {
                         await MainActor.run { status = "Double-checking the numbers…" }
                         if let fixed = await ReceiptRepair.repair(r) { r = fixed }
@@ -74,7 +77,7 @@ struct ProcessingView: View {
                         if result.items.isEmpty { status = "Couldn't find any prices on that one"; failed = true } else { done(result) }
                     }
                 } catch {
-                    parseLog.error("parse failed: \(error)")
+                    traceError("parse failed: \(error)")
                     await MainActor.run { status = "Couldn't read that photo"; failed = true }
                 }
             }

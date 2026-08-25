@@ -32,10 +32,13 @@ enum ReceiptRepair {
         let latin = parsed.lines.map { Heuristics.stripHan($0.replacingOccurrences(of: "\t", with: "  ")) }.filter { !$0.isEmpty }
         // The plain-English framing sentence matters: bare receipt text trips the model's language guard.
         let prompt = "Here is the text of a restaurant receipt, read line by line by OCR. Please extract the purchased items, subtotal, tax and tip.\n\n" + latin.joined(separator: "\n")
-        guard let out = try? await session.respond(to: prompt, generating: Receipt.self).content else { return nil }
+        guard let out = try? await session.respond(to: prompt, generating: Receipt.self).content else { trace("repair: model gave no answer"); return nil }
+        let listing = out.items.map { "\($0.quantity) × \($0.name) = \($0.price)" }.joined(separator: ", ")
+        trace("repair: \(out.items.count) items :: \(listing)")
         var fixed = parsed
         fixed.items = out.items.map { ParsedItem(name: $0.name, quantity: max(1, $0.quantity), priceCents: Int(($0.price * 100).rounded())) }
-        guard fixed.itemSumCents == subtotal, !fixed.items.isEmpty else { return nil }
+        guard fixed.itemSumCents == subtotal, !fixed.items.isEmpty else { trace("repair: rejected, does not reconcile"); return nil }
+        trace("repair: accepted")
         // Where the model agrees with the deterministic parse on name and price, keep the deterministic quantity.
         fixed.items = fixed.items.map { item in
             guard let match = parsed.items.first(where: { $0.priceCents == item.priceCents && $0.name.caseInsensitiveCompare(item.name) == .orderedSame }) else { return item }

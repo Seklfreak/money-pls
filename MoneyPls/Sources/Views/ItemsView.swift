@@ -62,7 +62,15 @@ struct ItemsView: View {
                             .background(RoundedRectangle(cornerRadius: 10).fill(Theme.amberBg)).padding(.top, 8)
                         }
                     }
-                    .padding(.horizontal, 14).padding(.bottom, 24)
+                    .padding(.horizontal, 14)
+                    if let data = split.receiptImage, let image = UIImage(data: data) {
+                        HStack(spacing: 4) {
+                            Text("Read something wrong?")
+                            ReportScanButton(image: image, trace: split.parseTrace ?? "", context: reportContext)
+                        }
+                        .font(Theme.text(13, .extrabold)).foregroundStyle(Theme.faint)
+                        .padding(.top, 14).padding(.bottom, 24)
+                    }
                 }
                 .scrollDismissesKeyboard(.interactively)
             }
@@ -81,6 +89,9 @@ struct ItemsView: View {
     private var tipPercent: Int? {
         guard split.subtotalCents > 0, split.tipCents > 0 else { return nil }
         return Int((Double(split.tipCents) / Double(split.subtotalCents) * 100).rounded())
+    }
+    private var reportContext: String {
+        "Items after parse: \(split.items.count), sum \(split.subtotalCents.money), printed subtotal \(split.printedSubtotalCents?.money ?? "none")"
     }
     private var tipLabel: String { tipPercent.map { "TIP · \($0)%" } ?? "TIP" }
     private func addItem() {
