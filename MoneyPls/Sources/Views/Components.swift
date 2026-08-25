@@ -173,10 +173,27 @@ struct Tray<Content: View>: View {
             .background(RoundedRectangle(cornerRadius: 12, style: .continuous).fill(Theme.paper).shadow(color: Color(hex: 0x785028).opacity(0.15), radius: 5, y: 3))
             .padding(EdgeInsets(top: 14, leading: 10, bottom: 18, trailing: 10))
             .raised(RoundedRectangle(cornerRadius: 22, style: .continuous), fill: Theme.tray, shadow: Theme.trayDark, depth: 8)
-            .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(Theme.trayLight, lineWidth: 3).mask(Rectangle().frame(height: 6).frame(maxHeight: .infinity, alignment: .top)))
+            // Top-edge highlight, inset past the corners so nothing overlaps the rounded rim.
+            .overlay(alignment: .top) { Capsule().fill(Theme.trayLight).frame(height: 3).padding(.horizontal, 24).padding(.top, 2) }
             // Flatten first: without this SwiftUI shadows every child separately and every label and field on the paper gets its own halo.
             .compositingGroup()
             .shadow(color: Color(hex: 0x785028).opacity(0.25), radius: 15, y: 16)
+    }
+}
+
+/// Scroll container for a Tray. Spans the full screen width so the tray's shadow isn't clipped at the
+/// sides, and fades the top edge so lines slide under the header softly instead of hitting a hard cut.
+struct TrayScroll<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        ScrollView {
+            content.padding(.horizontal, 30).padding(.top, 20)
+        }
+        .padding(.horizontal, -16)
+        .mask(VStack(spacing: 0) {
+            LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 20)
+            Color.black
+        })
     }
 }
 

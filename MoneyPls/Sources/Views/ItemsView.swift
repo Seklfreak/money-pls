@@ -20,7 +20,7 @@ struct ItemsView: View {
                          : "We read \(split.items.count) thing\(split.items.count == 1 ? "" : "s") off the receipt. Tap anything to fix it.")
                         .font(Theme.text(14)).foregroundStyle(Theme.muted)
                 }.frame(maxWidth: .infinity, alignment: .leading)
-                ScrollView {
+                TrayScroll {
                     Tray {
                         TextField("Where was this?", text: $split.title).font(Theme.disp(16, .bold)).multilineTextAlignment(.center).foregroundStyle(Theme.ink).padding(.bottom, 8)
                         HStack(spacing: 8) {
@@ -62,7 +62,6 @@ struct ItemsView: View {
                             .background(RoundedRectangle(cornerRadius: 10).fill(Theme.amberBg)).padding(.top, 8)
                         }
                     }
-                    .padding(.horizontal, 14)
                     if let data = split.receiptImage, let image = UIImage(data: data) {
                         HStack(spacing: 4) {
                             Text("Read something wrong?")

@@ -116,7 +116,8 @@ struct HistoryRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(split.displayTitle).font(Theme.disp(17)).foregroundStyle(Theme.ink).lineLimit(2)
                 HStack(spacing: 8) {
-                    Text(split.createdAt.formatted(.relative(presentation: .named)).capitalizedFirst).font(Theme.text(12)).foregroundStyle(Theme.muted)
+                    Text(split.createdAt.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)).capitalizedFirst)
+                        .font(Theme.text(12)).foregroundStyle(Theme.muted).lineLimit(1).fixedSize()
                     if !split.people.isEmpty {
                         Text("·").foregroundStyle(Theme.muted)
                         AvatarStack(people: split.sortedPeople, size: 24)

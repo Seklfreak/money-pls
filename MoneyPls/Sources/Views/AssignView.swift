@@ -35,7 +35,7 @@ struct AssignView: View {
                     .padding(.horizontal, 2).padding(.bottom, 3)
                 }
                 .padding(.horizontal, -2).frame(height: 34)
-                ScrollView {
+                TrayScroll {
                     Tray {
                         Text(split.displayTitle).font(Theme.disp(16, .bold)).foregroundStyle(Theme.ink)
                         Text("\(split.people.count) hungry people").font(Theme.text(12)).foregroundStyle(Theme.muted).padding(.bottom, 8)
@@ -52,7 +52,7 @@ struct AssignView: View {
                         HStack { Text("Total"); Spacer(); Text(split.totalCents.money).monospacedDigit() }
                             .font(Theme.disp(17, .bold)).foregroundStyle(Theme.ink)
                     }
-                    .padding(.horizontal, 14).padding(.bottom, 24)
+                    .padding(.bottom, 24)
                 }
             }
             .padding(.horizontal, 16)
@@ -162,8 +162,13 @@ struct ReceiptLine: View {
             Text(item.priceCents.moneyPlain).font(Theme.text(14)).foregroundStyle(Theme.ink).monospacedDigit().frame(width: 56, alignment: .trailing)
         }
         .padding(.horizontal, 10).padding(.vertical, 4).frame(minHeight: 42)
-        .background(RoundedRectangle(cornerRadius: 10).fill(tint))
-        .overlay(alignment: .leading) { RoundedRectangle(cornerRadius: 2).fill(selected ? Theme.pink : rail).frame(width: 4) }
+        .background(
+            // The rail lives inside the rounded tint and gives way to the outline while selected.
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 10).fill(tint)
+                if !selected { Rectangle().fill(rail).frame(width: 4) }
+            }.clipShape(RoundedRectangle(cornerRadius: 10))
+        )
         .overlay(RoundedRectangle(cornerRadius: 10).stroke(Theme.pink, lineWidth: selected ? 2.5 : 0))
         .padding(.horizontal, -10)
     }
