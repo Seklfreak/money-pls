@@ -189,12 +189,15 @@ struct TrayScroll<Content: View>: View {
         ScrollView {
             content.padding(.horizontal, 30).padding(.top, 20)
         }
-        .padding(.horizontal, -16)
+        .scrollClipDisabled()   // the mask is the clip; the scroll view's own would cut the shadow at its edges
         .mask(VStack(spacing: 0) {
             LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom).frame(height: 20)
             Color.black
             LinearGradient(colors: [.black, .clear], startPoint: .top, endPoint: .bottom).frame(height: 24)
         })
+        // Mask first, then bleed past the page padding: a negative padding reports the *smaller* frame, so a
+        // mask applied after it would be 32 pt narrower than the scroll view and cut the shadow anyway.
+        .padding(.horizontal, -16)
     }
 }
 
