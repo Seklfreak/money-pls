@@ -43,7 +43,7 @@ struct PeopleSheet: View {
                             ForEach(split.sortedPeople) { p in
                                 HStack(spacing: 12) {
                                     Avatar(p, size: 44)
-                                    Text(p.name).font(Theme.disp(17)).foregroundStyle(Theme.ink)
+                                    Text(p.name).font(Theme.disp(17)).foregroundStyle(Theme.ink).lineLimit(1)
                                     Spacer()
                                     if p.id == split.payer?.id { Pill(bg: Theme.amberBg, fg: Theme.amber, shadow: false) { Text("you paid") } }
                                     Button { remove(p) } label: {
@@ -60,7 +60,7 @@ struct PeopleSheet: View {
                             FlowLayout(spacing: 8) {
                                 ForEach(suspects, id: \.name) { s in
                                     Button { add(s.name, preferredColor: s.color) } label: {
-                                        HStack(spacing: 6) { Avatar(initial: String(s.name.prefix(1)).uppercased(), color: Theme.avatarColor(s.color), size: 28); Text(s.name) }
+                                        HStack(spacing: 6) { Avatar(initial: String(s.name.prefix(1)).uppercased(), color: Theme.avatarColor(s.color), size: 28); Text(s.name).lineLimit(1) }
                                             .font(Theme.text(14, .extrabold)).foregroundStyle(Theme.body)
                                             .padding(.leading, 6).padding(.trailing, 14).frame(height: 40)
                                             .raised(Capsule(), fill: .white, shadow: Theme.line, depth: 2)
@@ -81,7 +81,7 @@ struct PeopleSheet: View {
 
     private func add() { add(name, preferredColor: nil); name = "" }
     private func add(_ raw: String, preferredColor: Int?) {
-        let n = raw.trimmingCharacters(in: .whitespaces)
+        let n = String(raw.trimmingCharacters(in: .whitespaces).prefix(24))   // a first name, not a paragraph
         guard !n.isEmpty, !split.people.contains(where: { $0.name.lowercased() == n.lowercased() }) else { return }
         let used = Set(split.people.map(\.colorIndex))
         var color = preferredColor ?? split.people.count
@@ -99,20 +99,25 @@ struct PeopleSheet: View {
     }
 }
 
-/// Simple wrapping HStack.
+/// Simple wrapping HStack. Items are offered at most the full row width, so an overlong chip truncates
+/// instead of running off the edge.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 8
+    private func size(_ s: LayoutSubview, maxWidth w: CGFloat) -> CGSize {
+        let sz = s.sizeThatFits(.unspecified)
+        return sz.width <= w ? sz : s.sizeThatFits(ProposedViewSize(width: w, height: nil))
+    }
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let w = proposal.width ?? .infinity; var x: CGFloat = 0, y: CGFloat = 0, rowH: CGFloat = 0
-        for s in subviews { let sz = s.sizeThatFits(.unspecified)
+        for s in subviews { let sz = size(s, maxWidth: w)
             if x + sz.width > w, x > 0 { x = 0; y += rowH + spacing; rowH = 0 }
             x += sz.width + spacing; rowH = max(rowH, sz.height) }
         return CGSize(width: w == .infinity ? x : w, height: y + rowH)
     }
     func placeSubviews(in b: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         var x = b.minX, y = b.minY, rowH: CGFloat = 0
-        for s in subviews { let sz = s.sizeThatFits(.unspecified)
+        for s in subviews { let sz = size(s, maxWidth: b.width)
             if x + sz.width > b.maxX, x > b.minX { x = b.minX; y += rowH + spacing; rowH = 0 }
-            s.place(at: CGPoint(x: x, y: y), proposal: .unspecified); x += sz.width + spacing; rowH = max(rowH, sz.height) }
+            s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: sz.width, height: sz.height)); x += sz.width + spacing; rowH = max(rowH, sz.height) }
     }
 }
