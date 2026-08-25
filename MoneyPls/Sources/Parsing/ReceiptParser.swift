@@ -217,7 +217,7 @@ enum ReceiptParser {
 
 // MARK: - Deterministic parser
 enum Heuristics {
-    static let priceRe = #"(-?\$?\s?\d{1,5}[.,]\d{2}|\$\s?\d{1,5} \d{2}|\$\d{3,5})\s*$"#   // "$12.99" / "12,99" / "$18 99" / "$799" (OCR drops dots)
+    static let priceRe = #"(-?\$?\s?\d{1,5}[.,] ?\d{2}|\$\s?\d{1,5} \d{2}|\$\d{3,5})\s*$"#   // "$12.99" / "12,99" / "$18. 99" / "$18 99" / "$799" (OCR drops dots, adds spaces)
     static let noise = ["reprint", "suggested", "you pay", "order:", "order #", "table:", "guests", "qr code", "powered by", "unpaid",
                         "check #", "server", "ticket", "authorization", "receipt:", "station"]
 
@@ -299,7 +299,12 @@ enum Heuristics {
                     if bare.range(of: #"\btax\b"#, options: .regularExpression) != nil { r.taxCents = (r.taxCents ?? 0) + pp; continue }
                     r.tipCents = pp; continue
                 }
-                if let q = Int(flat), q > 0, q < 100 { pendingQty = q; continue }
+                if let q = Int(flat), q > 0, q < 100 {
+                    // A bilingual sub-label can leave its leading number behind ("10 秒牛舌" → "10"). When the
+                    // English line above starts with the same number it is part of the name, not a quantity.
+                    if pendingName?.hasPrefix("\(q) ") != true { pendingQty = q }
+                    continue
+                }
                 if flat.count >= 3 {
                     if let (pp, pq) = pendingPrice {
                         let (name, q) = nameAndQty(latin)
