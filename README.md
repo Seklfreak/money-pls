@@ -17,8 +17,8 @@ Everything runs on the phone — no accounts, no server, no per-receipt AI cost:
 
 ## Build
 
-    brew install xcodegen
-    cp Config/Local.xcconfig.example Config/Local.xcconfig   # add your DEVELOPMENT_TEAM for device builds
+    brew install xcodegen swiftlint
+    cp Config/Secrets.example.xcconfig Config/Secrets.xcconfig   # DEVELOPMENT_TEAM for device builds, SENTRY_DSN optional
     xcodegen generate
     open MoneyPls.xcodeproj        # or:
     xcodebuild -project MoneyPls.xcodeproj -scheme MoneyPls -destination 'generic/platform=iOS Simulator' build
@@ -31,3 +31,15 @@ Fonts (Fredoka, Nunito — OFL) are bundled under `MoneyPls/Resources/Fonts`. Re
 - Document segmentation returns nothing in the simulator; the text-cluster fallback kicks in (slower, still correct).
 - Seed test photos with `xcrun simctl addmedia <udid> photo.jpeg` and use "Pick from photos".
 - Parser logs: `xcrun simctl spawn <udid> log show --info --last 2m --predicate 'subsystem == "dev.winktech.moneypls"'`.
+
+## CI / releases
+
+`test.yaml` lints (`swiftlint --strict`) and compile-checks every push and PR on macOS 26. A green `main`
+auto-cuts a versioned release (`release.yaml`, [ai-release-action](https://github.com/Seklfreak/ai-release-action)
+proposes the semver bump and writes the notes), and the version tag triggers `testflight.yaml`, which archives with a
+stored distribution certificate, uploads dSYMs to Sentry, and ships to TestFlight with the release notes as "What to
+Test" — dormant until the App Store Connect secrets listed in that file exist. `testflight-refresh.yaml` re-uploads
+the latest tag monthly so the build never hits TestFlight's 90-day expiry. Renovate keeps the Swift package current.
+
+Crash reporting is Sentry (`SENTRY_DSN` build setting, Release builds only, `sendDefaultPii = false`). Receipts and
+names never leave the phone — only crashes do.

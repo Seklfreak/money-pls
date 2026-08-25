@@ -29,7 +29,11 @@ struct Logo: View {
                 l.fill(Path(ellipseIn: CGRect(x: 30 * s, y: 36 * s, width: 4 * s, height: 4 * s)), with: .color(Theme.green.opacity(0.7)))
             }
             // dashes
-            for (a, b, w) in [((12.4, 30.8), (9.2, 27.7), 2.0), ((21.0, 25.4), (19.1, 20.2), 2.2), ((32.0, 23.5), (32.0, 17.0), 2.4), ((43.0, 25.4), (44.9, 20.2), 2.2), ((51.6, 30.8), (54.8, 27.7), 2.0)] {
+            let dashes: [((CGFloat, CGFloat), (CGFloat, CGFloat), CGFloat)] = [
+                ((12.4, 30.8), (9.2, 27.7), 2.0), ((21.0, 25.4), (19.1, 20.2), 2.2), ((32.0, 23.5), (32.0, 17.0), 2.4),
+                ((43.0, 25.4), (44.9, 20.2), 2.2), ((51.6, 30.8), (54.8, 27.7), 2.0),
+            ]
+            for (a, b, w) in dashes {
                 var d = Path(); d.move(to: p(a.0, a.1)); d.addLine(to: p(b.0, b.1))
                 ctx.stroke(d, with: .color(Theme.pink), style: StrokeStyle(lineWidth: w * s, lineCap: .round))
             }
@@ -74,7 +78,7 @@ struct AvatarStack: View {
 
 struct PrimaryButton: View {
     let title: String
-    var icon: String? = nil
+    var icon: String?
     var height: CGFloat = 56
     var fontSize: CGFloat = 18
     var fill: Color = Theme.pink
@@ -97,7 +101,7 @@ struct PrimaryButton: View {
 
 struct SecondaryButton: View {
     let title: String
-    var icon: String? = nil
+    var icon: String?
     var height: CGFloat = 48
     let action: () -> Void
     var body: some View {
@@ -188,7 +192,10 @@ struct Footer<Content: View>: View {
         VStack(spacing: 16) { content }
             .padding(.horizontal, 16).padding(.top, 18).padding(.bottom, 8)
             .frame(maxWidth: .infinity)
-            .background(UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28).fill(.white).shadow(color: Color(hex: 0x785028).opacity(0.12), radius: 15, y: -8).ignoresSafeArea(edges: .bottom))
+            .background(
+                UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28).fill(.white)
+                    .shadow(color: Color(hex: 0x785028).opacity(0.12), radius: 15, y: -8).ignoresSafeArea(edges: .bottom)
+            )
     }
 }
 

@@ -39,7 +39,15 @@ enum Money {
     }
 
     static func fraction(_ n: Int) -> String {
-        switch n { case 2: "½"; case 3: "⅓"; case 4: "¼"; case 5: "⅕"; case 6: "⅙"; case 8: "⅛"; default: "1/\(n)" }
+        switch n {
+        case 2: "½"
+        case 3: "⅓"
+        case 4: "¼"
+        case 5: "⅕"
+        case 6: "⅙"
+        case 8: "⅛"
+        default: "1/\(n)"
+        }
     }
 
     /// Per-person bills for a split. Shared-by-everyone items are collapsed into one "N shared plates" line.

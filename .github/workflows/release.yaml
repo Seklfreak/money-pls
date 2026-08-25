@@ -1,0 +1,42 @@
+name: Release
+
+# Auto-cut a release on every green commit to main (Test must pass first).
+# The bump decision, release notes, tagging and build dispatch all live in
+# Seklfreak/ai-release-action — this file supplies only what is specific to
+# Money pls.
+#
+# project-description is what the classifier judges "can this change reach a
+# user?" against, so it must describe THIS project.
+on:
+  workflow_run:
+    workflows: ["Test"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: write # push tag + create release
+  actions: write # dispatch the build workflow
+
+jobs:
+  release:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-depth: 0 # the bump is read from the commit range
+          fetch-tags: true # the previous tag is the baseline
+
+      - uses: Seklfreak/ai-release-action@v1
+        with:
+          sha: ${{ github.event.workflow_run.head_sha }}
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          build-workflow: "testflight.yaml"
+          project-description: >-
+            Money pls is an iOS app (SwiftUI, whole repo) shipped to TestFlight
+            on every version tag: scan a restaurant receipt, tap who had what,
+            and send everyone their share — all on-device, no backend. Changes
+            under MoneyPls/ (sources, fonts, assets) and project.yml reach
+            users. Only scripts/, README, CLAUDE.md and CI workflows live
+            outside the released artifact.

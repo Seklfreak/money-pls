@@ -109,9 +109,14 @@ struct AssignView: View {
     }
     private func toggle(_ p: Person, on item: LineItem) {
         withAnimation(.snappy) {
-            if item.everyone { item.everyone = false; item.assigneeIDs = [p.id] }   // narrowing from everyone: start with just this person
-            else if item.assigneeIDs.contains(p.id) { item.assigneeIDs.removeAll { $0 == p.id } }
-            else { item.assigneeIDs.append(p.id); if item.assigneeIDs.count == split.people.count { item.everyone = true; item.assigneeIDs = [] } }
+            if item.everyone {
+                item.everyone = false; item.assigneeIDs = [p.id]   // narrowing from everyone: start with just this person
+            } else if item.assigneeIDs.contains(p.id) {
+                item.assigneeIDs.removeAll { $0 == p.id }
+            } else {
+                item.assigneeIDs.append(p.id)
+                if item.assigneeIDs.count == split.people.count { item.everyone = true; item.assigneeIDs = [] }
+            }
         }
         UISelectionFeedbackGenerator().selectionChanged()
     }

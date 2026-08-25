@@ -1,0 +1,30 @@
+# Focused Swift lint: keep the valuable default rules, relax the stylistic noise
+# that fights idiomatic short closure/loop variables. Run with `swiftlint` (also
+# enforced in CI).
+included:
+  - MoneyPls/Sources
+
+line_length:
+  warning: 200
+  ignores_comments: true
+  ignores_urls: true
+
+# The receipt parser is a long, deliberately linear rule list — splitting it
+# into tiny functions would hide the order the rules apply in.
+cyclomatic_complexity:
+  warning: 30
+  error: 40
+function_body_length:
+  warning: 90
+  error: 120
+
+# Single-letter names are fine in tight closures (r, p, v, …).
+identifier_name:
+  min_length:
+    warning: 1
+    error: 1
+
+disabled_rules:
+  - trailing_comma # trailing commas keep diffs clean
+  - large_tuple # (turns, result) style pairs/triples are clearer than one-off structs
+  - optional_data_string_conversion

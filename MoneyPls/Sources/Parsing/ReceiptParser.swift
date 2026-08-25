@@ -31,10 +31,11 @@ enum ReceiptParser {
         var source = cg
         var documentCropped = alreadyCropped
         if !alreadyCropped {
-            do { if let c = try await cropToDocument(cg) { source = c; documentCropped = true; parseLog.info("document crop \(c.width)x\(c.height)") } }
-            catch { parseLog.error("document crop failed: \(error)") }
+            do {
+                if let c = try await cropToDocument(cg) { source = c; documentCropped = true; parseLog.info("document crop \(c.width)x\(c.height)") }
+            } catch { parseLog.error("document crop failed: \(error)") }
         }
-        var best: (turns: Int, result: OCRResult)? = nil
+        var best: (turns: Int, result: OCRResult)?
         for n in 0..<4 {
             do {
                 let r = try await ocr(rotated(source, quarterTurns: n))
@@ -50,7 +51,8 @@ enum ReceiptParser {
             if let c = cropToWords(upright, chosen.result.words) {
                 for n in 0..<4 {   // the crop is small, so re-checking orientation is cheap
                     guard let r = try? await ocr(rotated(c, quarterTurns: n)) else { continue }
-                    parseLog.info("text-cluster crop \(c.width)x\(c.height) rotation \(n) lines=\(r.lines.count) score=\(r.score) right=\(r.right) head=\(r.lines.prefix(12).joined(separator: " | ").replacingOccurrences(of: "\t", with: " "))")
+                    let head = r.lines.prefix(12).joined(separator: " | ").replacingOccurrences(of: "\t", with: " ")
+                    parseLog.info("text-cluster crop \(c.width)x\(c.height) rotation \(n) lines=\(r.lines.count) score=\(r.score) right=\(r.right) head=\(head)")
                     if r.score > chosen.result.score { chosen = (n, r) }
                 }
             }
@@ -162,7 +164,7 @@ enum ReceiptParser {
         var used = Set<Int>()
         var lines: [Phrase] = []
         for (pi, p) in phrases.enumerated() where p.isPrice && !used.contains(pi) {
-            var best: (Int, CGFloat)? = nil
+            var best: (Int, CGFloat)?
             for (qi, q) in phrases.enumerated() where qi != pi && !used.contains(qi) && !q.isPrice {
                 guard q.maxX <= p.minX + 0.5 * p.h else { continue }
                 let dy = abs(q.rightY - p.leftY)
@@ -181,7 +183,8 @@ enum ReceiptParser {
 // MARK: - Deterministic parser
 enum Heuristics {
     static let priceRe = #"(-?\$?\s?\d{1,5}[.,]\d{2}|\$\s?\d{1,5} \d{2}|\$\d{3,5})\s*$"#   // "$12.99" / "12,99" / "$18 99" / "$799" (OCR drops dots)
-    static let noise = ["reprint", "suggested", "you pay", "order:", "order #", "table:", "guests", "qr code", "powered by", "unpaid", "check #", "server", "ticket", "authorization", "receipt:", "station"]
+    static let noise = ["reprint", "suggested", "you pay", "order:", "order #", "table:", "guests", "qr code", "powered by", "unpaid",
+                        "check #", "server", "ticket", "authorization", "receipt:", "station"]
 
     static func money(_ s: String) -> (Int, Range<String.Index>)? {
         guard let r = s.range(of: priceRe, options: .regularExpression) else { return nil }
@@ -204,16 +207,16 @@ enum Heuristics {
 
     static func parse(lines: [String]) -> ParsedReceipt {
         var r = ParsedReceipt()
-        var pendingName: String? = nil
-        var pendingQty: Int? = nil
-        var pendingPrice: (Int, Int)? = nil
+        var pendingName: String?
+        var pendingQty: Int?
+        var pendingPrice: (Int, Int)?
         let priced = lines.filter { money($0) != nil }
         let leadingInt = priced.filter { $0.range(of: #"^\d{1,2}\s+\D"#, options: .regularExpression) != nil }.count
         let qtyColumn = priced.count >= 3 && leadingInt * 10 >= priced.count * 6
 
         func nameAndQty(_ raw: String) -> (String, Int?) {
             var b = boxes(raw)
-            var q: Int? = nil
+            var q: Int?
             if let f = b.first, let n = Int(f), n > 0, n < 100 { q = n; b.removeFirst() }
             var name = b.joined(separator: " ")
             if qtyColumn, let m = name.range(of: #"^\d{1,2}\s+(?=\D)"#, options: .regularExpression) { q = Int(name[m].trimmingCharacters(in: .whitespaces)); name.removeSubrange(m) }

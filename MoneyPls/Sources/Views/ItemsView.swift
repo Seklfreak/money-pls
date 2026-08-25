@@ -133,8 +133,7 @@ struct CentsField: View {
             .onAppear { text = cents.moneyPlain }
             .onChange(of: cents) { _, v in if !focused { text = v.moneyPlain } }
             .onChange(of: focused) { _, f in
-                if f { if cents == 0 { text = "" } }
-                else { cents = Int(((Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0) * 100).rounded()); text = cents.moneyPlain }
+                if f { if cents == 0 { text = "" } } else { cents = Int(((Double(text.replacingOccurrences(of: ",", with: ".")) ?? 0) * 100).rounded()); text = cents.moneyPlain }
             }
     }
 }

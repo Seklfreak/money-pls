@@ -36,10 +36,26 @@ enum Theme {
     static func text(_ size: CGFloat, _ weight: TextWeight = .bold) -> Font {
         .custom(weight.name, size: size)
     }
-    enum DispWeight { case medium, semibold, bold
-        var name: String { switch self { case .medium: "Fredoka-Medium"; case .semibold: "Fredoka-SemiBold"; case .bold: "Fredoka-Bold" } } }
-    enum TextWeight { case semibold, bold, extrabold
-        var name: String { switch self { case .semibold: "Nunito-SemiBold"; case .bold: "Nunito-Bold"; case .extrabold: "Nunito-ExtraBold" } } }
+    enum DispWeight {
+        case medium, semibold, bold
+        var name: String {
+            switch self {
+            case .medium: "Fredoka-Medium"
+            case .semibold: "Fredoka-SemiBold"
+            case .bold: "Fredoka-Bold"
+            }
+        }
+    }
+    enum TextWeight {
+        case semibold, bold, extrabold
+        var name: String {
+            switch self {
+            case .semibold: "Nunito-SemiBold"
+            case .bold: "Nunito-Bold"
+            case .extrabold: "Nunito-ExtraBold"
+            }
+        }
+    }
 }
 
 extension Color {
