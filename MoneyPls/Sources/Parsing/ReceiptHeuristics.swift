@@ -98,6 +98,7 @@ enum Heuristics {
         raw.split(separator: "\t").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
 
+    // swiftlint:disable:next cyclomatic_complexity function_body_length
     static func parse(lines: [String]) -> ParsedReceipt {
         var r = ParsedReceipt()
         r.currencyCode = detectCurrency(lines)
