@@ -2,10 +2,12 @@ import Foundation
 import FoundationModels
 
 /// Optional on-device LLM pass, used only when the deterministic parse doesn't reconcile with the
-/// printed subtotal. Its answer is accepted only if it reconciles better.
+/// printed subtotal. Its answer is accepted only if it reconciles exactly: the model drops items and
+/// misreads names with numbers in them ("10 Second Beef Tongue" becomes ten beef tongues), so a
+/// "closer but still wrong" answer would replace one wrong line with several.
 enum ReceiptRepair {
     @Generable struct Item {
-        @Guide(description: "Quantity ordered; 1 if not printed") var quantity: Int
+        @Guide(description: "Count from the quantity column; 1 if not printed. A number that is part of the name (\"10 Second Beef Tongue\", \"7 Up\") is not a quantity") var quantity: Int
         @Guide(description: "Item name exactly as printed, without Chinese characters") var name: String
         @Guide(description: "Line total in dollars exactly as printed; never compute or invent") var price: Double
     }
@@ -33,7 +35,12 @@ enum ReceiptRepair {
         guard let out = try? await session.respond(to: prompt, generating: Receipt.self).content else { return nil }
         var fixed = parsed
         fixed.items = out.items.map { ParsedItem(name: $0.name, quantity: max(1, $0.quantity), priceCents: Int(($0.price * 100).rounded())) }
-        let before = abs(parsed.itemSumCents - subtotal), after = abs(fixed.itemSumCents - subtotal)
-        return after < before ? fixed : nil
+        guard fixed.itemSumCents == subtotal, !fixed.items.isEmpty else { return nil }
+        // Where the model agrees with the deterministic parse on name and price, keep the deterministic quantity.
+        fixed.items = fixed.items.map { item in
+            guard let match = parsed.items.first(where: { $0.priceCents == item.priceCents && $0.name.caseInsensitiveCompare(item.name) == .orderedSame }) else { return item }
+            return ParsedItem(name: match.name, quantity: match.quantity, priceCents: item.priceCents)
+        }
+        return fixed
     }
 }

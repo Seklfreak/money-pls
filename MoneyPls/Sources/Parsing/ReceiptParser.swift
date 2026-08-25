@@ -16,6 +16,9 @@ struct ParsedReceipt {
     var tipCents: Int?
     var totalCents: Int?
     var lines: [String] = []
+    /// Item-looking lines that never got a price, with the item index they would have had. Used to place a
+    /// price recovered from another OCR pass.
+    var orphans: [(name: String, index: Int)] = []
     var itemSumCents: Int { items.reduce(0) { $0 + $1.priceCents } }
     var reconciles: Bool { subtotalCents.map { $0 == itemSumCents } ?? false }
 }
@@ -36,10 +39,12 @@ enum ReceiptParser {
             } catch { parseLog.error("document crop failed: \(error)") }
         }
         var best: (turns: Int, result: OCRResult)?
+        var candidates: [OCRResult] = []   // every pass we ran; the parse decides among them below
         for n in 0..<4 {
             do {
                 let r = try await ocr(rotated(source, quarterTurns: n))
                 parseLog.info("rotation \(n) lines=\(r.lines.count) score=\(r.score)")
+                candidates.append(r)
                 if best == nil || r.score > best!.result.score { best = (n, r) }
             } catch { parseLog.error("ocr rotation \(n) failed: \(error)") }
         }
@@ -53,13 +58,45 @@ enum ReceiptParser {
                     guard let r = try? await ocr(rotated(c, quarterTurns: n)) else { continue }
                     let head = r.lines.prefix(12).joined(separator: " | ").replacingOccurrences(of: "\t", with: " ")
                     parseLog.info("text-cluster crop \(c.width)x\(c.height) rotation \(n) lines=\(r.lines.count) score=\(r.score) right=\(r.right) head=\(head)")
+                    candidates.append(r)
                     if r.score > chosen.result.score { chosen = (n, r) }
                 }
             }
         }
-        let bestLines = chosen.result.lines
+        // Vision drops or misplaces the odd price in any single pass. The OCR score can't see that, but the
+        // parser can: a pass whose items sum to the printed subtotal beats the highest-scoring one that doesn't.
+        var receipt = Heuristics.parse(lines: chosen.result.lines)
+        var bestLines = chosen.result.lines
+        if !receipt.reconciles {
+            let alternatives = candidates.filter { $0.lines != chosen.result.lines }.sorted { $0.score > $1.score }
+                .map { (result: $0, parsed: Heuristics.parse(lines: $0.lines)) }
+            if let alt = alternatives.first(where: { $0.parsed.reconciles && $0.parsed.items.count >= max(1, receipt.items.count / 2) }) {
+                parseLog.info("switching to a reconciling pass: score=\(alt.result.score) items=\(alt.parsed.items.count)")
+                receipt = alt.parsed; bestLines = alt.result.lines
+            } else if let subtotal = receipt.subtotalCents, subtotal > receipt.itemSumCents {
+                // One line lost its price (typically the upright pass dropped a word the upside-down pass kept).
+                // If exactly that amount shows up in another serious pass under a name we have no priced item
+                // for, it is that item: put it where our own pass saw the name without a price, else at the end.
+                let deficit = subtotal - receipt.itemSumCents
+                let have = receipt.items.map { Heuristics.key($0.name) }
+                search: for alt in alternatives where alt.parsed.items.count * 2 >= receipt.items.count {
+                    for it in alt.parsed.items where it.priceCents == deficit {
+                        let k = Heuristics.key(it.name)
+                        guard k.filter(\.isLetter).count >= 3, !have.contains(where: { Heuristics.similar($0, k) }) else { continue }
+                        var name = it.name, index = receipt.items.count
+                        if let o = receipt.orphans.first(where: { Heuristics.similar(Heuristics.key($0.name), k) }) {
+                            if o.name.count > name.count { name = o.name }
+                            index = o.index
+                        }
+                        if name == name.uppercased() { name = name.capitalized }
+                        receipt.items.insert(ParsedItem(name: name, quantity: 1, priceCents: deficit), at: min(index, receipt.items.count))
+                        parseLog.info("recovered \(name) = \(deficit) from pass score=\(alt.result.score)")
+                        break search
+                    }
+                }
+            }
+        }
         for (i, l) in bestLines.enumerated() { parseLog.info("L\(i): \(l.replacingOccurrences(of: "\t", with: " ⇥ "))") }
-        var receipt = Heuristics.parse(lines: bestLines)
         receipt.lines = bestLines
         for it in receipt.items { parseLog.info("ITEM \(it.quantity) × \(it.name) = \(it.priceCents)") }
         return receipt
@@ -201,6 +238,12 @@ enum Heuristics {
         s.replacingOccurrences(of: #"\d*[\p{Han}（）()/、·]+\d*"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"\s{2,}"#, with: " ", options: .regularExpression).trimmingCharacters(in: .whitespaces)
     }
+    /// Letters and digits only, lowercased — what two OCR passes reliably agree on for the same name.
+    static func key(_ s: String) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
+    /// OCR clips edges ("otus Root" for "LOTUS ROOT"), so containment counts once there is enough to go on.
+    static func similar(_ a: String, _ b: String) -> Bool {
+        a == b || (min(a.count, b.count) >= 4 && (a.contains(b) || b.contains(a)))
+    }
     static func boxes(_ raw: String) -> [String] {
         raw.split(separator: "\t").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
     }
@@ -213,6 +256,14 @@ enum Heuristics {
         let priced = lines.filter { money($0) != nil }
         let leadingInt = priced.filter { $0.range(of: #"^\d{1,2}\s+\D"#, options: .regularExpression) != nil }.count
         let qtyColumn = priced.count >= 3 && leadingInt * 10 >= priced.count * 6
+
+        func dropPending() {
+            guard let p = pendingName else { return }
+            pendingName = nil
+            let t = p.replacingOccurrences(of: "\t", with: " ").trimmingCharacters(in: .whitespaces)
+            guard let f = t.first, f.isLetter, t.filter(\.isLetter).count >= 3 else { return }
+            r.orphans.append((name: t, index: r.items.count))
+        }
 
         func nameAndQty(_ raw: String) -> (String, Int?) {
             var b = boxes(raw)
@@ -235,7 +286,7 @@ enum Heuristics {
         for raw in lines {
             let line = raw.trimmingCharacters(in: .whitespaces)
             let lower = line.lowercased()
-            if noise.contains(where: { lower.contains($0) }) { pendingName = nil; continue }
+            if noise.contains(where: { lower.contains($0) }) { dropPending(); continue }
             if lower.range(of: #"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* \d{1,2},? ?\d{4}"#, options: .regularExpression) != nil { continue }
             if lower.range(of: #"\d{1,2}/\d{1,2}/\d{2,4}"#, options: .regularExpression) != nil { continue }
             let bare = stripHan(line).lowercased()
@@ -256,7 +307,7 @@ enum Heuristics {
                         let (name, q) = nameAndQty(latin)
                         r.items.append(ParsedItem(name: name, quantity: q ?? pq, priceCents: pp))
                         pendingPrice = nil; pendingName = nil; pendingQty = nil
-                    } else { pendingName = latin }
+                    } else { dropPending(); pendingName = latin }
                 }
                 continue
             }
@@ -272,9 +323,9 @@ enum Heuristics {
             if tl.range(of: #"\b(tip|gratuity|service)\b"#, options: .regularExpression) != nil { r.tipCents = price; continue }
             var qty = pendingQty ?? 1
             var (name, q) = nameAndQty(text)
-            if name.isEmpty, let p = pendingName { let (pn, pq) = nameAndQty(p); name = pn; q = q ?? pq }
+            if name.isEmpty, let p = pendingName { let (pn, pq) = nameAndQty(p); name = pn; q = q ?? pq; pendingName = nil }
             if let q { qty = q }
-            pendingName = nil; pendingQty = nil
+            dropPending(); pendingQty = nil
             if name.isEmpty { pendingPrice = (price, qty); continue }
             r.items.append(ParsedItem(name: name, quantity: qty, priceCents: price))
         }
