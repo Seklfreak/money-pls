@@ -12,14 +12,22 @@ struct ReportScanButton: View {
     /// One line of context from the caller (the error shown, or the item count after parsing).
     let context: String
     var title = "Report this scan"
+    @State private var confirm = false
     @State private var showMail = false
     @State private var showShare = false
 
     static let address = "money-pls@winktech.dev"
 
     var body: some View {
-        Button(title) { if MFMailComposeViewController.canSendMail() { showMail = true } else { showShare = true } }
+        Button(title) { confirm = true }
             .foregroundStyle(Theme.pink)
+            .alert("Send this receipt?", isPresented: $confirm) {
+                Button("Attach photo and send") { if MFMailComposeViewController.canSendMail() { showMail = true } else { showShare = true } }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("Receipts are read on your phone and never leave it on their own. " +
+                     "This report mails the photo and the parse log to the developer, so anything printed on the receipt becomes visible to them.")
+            }
             .sheet(isPresented: $showMail) { MailComposer(report: report).ignoresSafeArea() }
             .sheet(isPresented: $showShare) { ActivitySheet(items: report.shareItems).ignoresSafeArea() }
     }
