@@ -45,6 +45,7 @@ struct HomeView: View {
                                         // Preview shape matches the card, including its raised edge (kept inside the frame below).
                                         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 22, style: .continuous))
                                         .contextMenu { Button(role: .destructive) { context.delete(split) } label: { Label("Delete", systemImage: "trash") } }
+                                        .swipeToDelete { context.delete(split) }
                                 }
                             }
                         }

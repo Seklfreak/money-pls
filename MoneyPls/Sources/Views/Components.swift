@@ -201,6 +201,53 @@ struct TrayScroll<Content: View>: View {
     }
 }
 
+/// Swipe-left-to-delete for rows that live in a ScrollView (List's swipeActions aren't available there).
+/// A short swipe parks the row with a trash button showing; a long one deletes straight away.
+struct SwipeToDelete: ViewModifier {
+    let onDelete: () -> Void
+    @State private var offset: CGFloat = 0
+    @State private var parked = false
+    private let reveal: CGFloat = 84
+    private let commit: CGFloat = 180
+
+    func body(content: Content) -> some View {
+        content
+            .overlay { if parked { Color.clear.contentShape(Rectangle()).onTapGesture { close() } } }   // tap a parked row to close it, not open it
+            .offset(x: offset)
+            .background(alignment: .trailing) {
+                Button(action: remove) {
+                    Image(systemName: "trash.fill").font(.system(size: 18, weight: .bold)).foregroundStyle(.white)
+                        .frame(width: reveal - 12).frame(maxHeight: .infinity)
+                        .background(RoundedRectangle(cornerRadius: 22, style: .continuous).fill(Theme.pink))
+                }
+                .buttonStyle(PressStyle())
+                .padding(.bottom, 4)   // sits under the card, which reserves this for its raised edge
+                .opacity(offset < -8 ? 1 : 0)
+                .scaleEffect(min(1, max(0.6, -offset / reveal)), anchor: .trailing)
+            }
+            .highPriorityGesture(   // beats the row's Button: a sideways drag is a swipe, a touch without one is still a tap
+                DragGesture(minimumDistance: 24, coordinateSpace: .local)
+                    .onChanged { g in
+                        guard abs(g.translation.width) > abs(g.translation.height) else { return }
+                        let x = g.translation.width + (parked ? -reveal : 0)
+                        offset = min(0, x < -commit ? -commit - (-(x + commit)) * 0.2 : x)
+                    }
+                    .onEnded { g in
+                        let x = g.translation.width + (parked ? -reveal : 0)
+                        if x < -commit { remove(); return }
+                        withAnimation(.snappy) { parked = x < -reveal / 2; offset = parked ? -reveal : 0 }
+                    }
+            )
+    }
+    private func close() { withAnimation(.snappy) { parked = false; offset = 0 } }
+    private func remove() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        withAnimation(.snappy) { offset = -600 }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { withAnimation(.snappy) { onDelete() } }
+    }
+}
+extension View { func swipeToDelete(_ action: @escaping () -> Void) -> some View { modifier(SwipeToDelete(onDelete: action)) } }
+
 struct DottedRule: View {
     var body: some View {
         Line().stroke(style: StrokeStyle(lineWidth: 2, dash: [2, 3])).foregroundStyle(Theme.line).frame(height: 2)
