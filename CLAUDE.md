@@ -13,6 +13,16 @@
   points, not screenshot pixels); parse logs need `log show --info`.
 - Parsing runs in a detached task on purpose — a view-bound `.task` gets cancelled when the cover re-identifies and
   Vision surfaces that as `requestCancelled`.
+- Analytics (`Sources/App/Umami.swift`) POSTs straight to Umami's `/api/send`. Three things bite: a request with no
+  `User-Agent` is rejected and one matching Umami's bot filter gets a `200` that stores nothing (so `browserUserAgent()`
+  must keep looking like a browser — it is also where Umami reads OS and device from); an app has no browser session to
+  hash, so every event carries `payload.id`, a random per-install UUID in `UserDefaults` (50-char cap); and events are
+  filed under the last screen reported, so a sheet or cover closing needs an `onDismiss` that says where you landed —
+  nothing fires `onAppear` underneath it. Never send anything off a receipt: counts and outcomes only.
+- The Umami site is declared in `winkcloud/umami.auto.tfvars` with a pinned UUID, not clicked into the UI. `UMAMI_URL`
+  and `UMAMI_WEBSITE_ID` are repo secrets passed as build settings in `testflight.yaml` — **the archive never reads
+  `Secrets.xcconfig`**, so a value missing there ships the app silent. CI compile-checks Debug only, which does not
+  build the `#if !DEBUG` block; a local Release build is the only check that covers it.
 - Public repo: no homelab/cluster details, no personal data, no test receipt photos in git.
 - Shipping: same pipeline as Moodring (Test → ai-release-action → TestFlight). The TestFlight job is gated on the
   `APP_STORE_CONNECT_KEY_ID` secret; set it only once the App Store Connect app record for

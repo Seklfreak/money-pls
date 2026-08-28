@@ -30,7 +30,10 @@ struct ItemsView: View {
                         HStack(spacing: 8) {
                             // Translate names (on device) — only offered while some name is in a script we could translate.
                             if split.items.contains(where: { $0.needsTranslation && $0.translatedName == nil }) {
-                                Button { translate() } label: {
+                                Button {
+                                    Analytics.track("items_translated")
+                                    translate()
+                                } label: {
                                     Image(systemName: "character.book.closed").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.pink)
                                         .frame(width: 60, height: 32).background(Capsule().fill(Theme.bg))
                                 }.accessibilityLabel("Translate names")
@@ -107,6 +110,7 @@ struct ItemsView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .onAppear { Analytics.screen(.items) }
         .environment(\.currency, split.currencyCode)
         .translateNames($translation, names: untranslated, results: $translations, failure: $translationFailure)
         .alert("Translation unavailable", isPresented: Binding(get: { translationFailure != nil }, set: { if !$0 { translationFailure = nil } })) {
@@ -115,10 +119,14 @@ struct ItemsView: View {
         .onChange(of: translations) { _, new in
             for item in split.items { if let t = new[item.id.uuidString] { item.translatedName = t } }
         }
-        .sheet(isPresented: $showPeople) {
+        .sheet(isPresented: $showPeople, onDismiss: {
+            // Dragged the sheet away rather than tapping Done — still on Items. Checked after
+            // dismissal, so a Done that pushes Assign has already moved the path on.
+            if path.last == .items(split.id) { Analytics.screen(.items) }
+        }, content: {
             PeopleSheet(split: split) { showPeople = false; path.append(.assign(split.id)) }
                 .presentationDetents([.large]).presentationDragIndicator(.hidden)
-        }
+        })
     }
 
     private var tipPercent: Int? {

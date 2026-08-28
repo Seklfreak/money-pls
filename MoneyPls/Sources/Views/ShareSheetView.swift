@@ -34,6 +34,7 @@ struct ShareSheetView: View {
             VStack(spacing: 10) {
                 PrimaryButton(title: single != nil ? "Send the card" : "Send the cards", icon: "square.and.arrow.up") { share() }
                 SecondaryButton(title: copied ? "Copied!" : "Copy as text") {
+                    Analytics.track("bill_copied", ["cards": String(bills.count)])
                     UIPasteboard.general.string = bills.map { text(for: $0) }.joined(separator: "\n\n")
                     copied = true
                     Task { try? await Task.sleep(for: .seconds(1.5)); copied = false }
@@ -42,6 +43,7 @@ struct ShareSheetView: View {
         }
         .padding(.horizontal, 16).padding(.bottom, 16)
         .background(Theme.bg.ignoresSafeArea())
+        .onAppear { Analytics.screen(.share) }
     }
 
     private func text(for bill: PersonBill) -> String {
@@ -50,6 +52,7 @@ struct ShareSheetView: View {
     }
 
     private func share() {
+        Analytics.track("bill_shared", ["cards": String(bills.count)])
         let images: [UIImage] = bills.compactMap { bill in
             let r = ImageRenderer(content: ShareCard(split: split, bill: bill).frame(width: 320))
             r.scale = 3

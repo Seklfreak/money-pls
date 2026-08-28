@@ -49,5 +49,9 @@
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>
 	</array>
+	<key>UMAMI_URL</key>
+	<string>$(UMAMI_URL)</string>
+	<key>UMAMI_WEBSITE_ID</key>
+	<string>$(UMAMI_WEBSITE_ID)</string>
 </dict>
 </plist>

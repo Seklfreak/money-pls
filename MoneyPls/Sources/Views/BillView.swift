@@ -58,8 +58,15 @@ struct BillView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
-        .sheet(item: $sharing) { bill in ShareSheetView(split: split, bills: [bill]).presentationDetents([.large]) }
-        .sheet(isPresented: $shareAll) { ShareSheetView(split: split, bills: bills.filter { $0.person.id != payer?.id }).presentationDetents([.large]) }
+        .onAppear { Analytics.screen(.bill) }
+        // A sheet closing fires no onAppear beneath it, so without these the bill would stay
+        // "on" /share and marking someone paid would be filed there.
+        .sheet(item: $sharing, onDismiss: { Analytics.screen(.bill) }, content: { bill in
+            ShareSheetView(split: split, bills: [bill]).presentationDetents([.large])
+        })
+        .sheet(isPresented: $shareAll, onDismiss: { Analytics.screen(.bill) }, content: {
+            ShareSheetView(split: split, bills: bills.filter { $0.person.id != payer?.id }).presentationDetents([.large])
+        })
     }
 }
 
@@ -77,7 +84,10 @@ struct BillCard: View {
                 Spacer()
                 Text(bill.totalCents.money(bill.currency)).font(Theme.disp(22, .bold)).foregroundStyle(Theme.ink).monospacedDigit()
                     .strikethrough(bill.person.settled, color: Theme.green)
-                Button { bill.person.settled.toggle() } label: {
+                Button {
+                    bill.person.settled.toggle()
+                    if bill.person.settled { Analytics.track("person_settled") }
+                } label: {
                     Image(systemName: bill.person.settled ? "checkmark.circle.fill" : "circle").font(.system(size: 26, weight: .semibold))
                         .foregroundStyle(bill.person.settled ? Theme.green : Theme.sand)
                 }

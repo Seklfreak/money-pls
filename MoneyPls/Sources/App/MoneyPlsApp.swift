@@ -15,6 +15,9 @@ struct MoneyPlsApp: App {
                 options.sendDefaultPii = false
             }
         }
+        // Same rule as Sentry: local runs would only muddy the numbers, and the placeholder
+        // xcconfig has no Umami credentials anyway.
+        Analytics.configure()
         #endif
     }
 

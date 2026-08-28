@@ -43,3 +43,9 @@ the latest tag monthly so the build never hits TestFlight's 90-day expiry. Renov
 
 Crash reporting is Sentry (`SENTRY_DSN` build setting, Release builds only, `sendDefaultPii = false`). Receipts and
 names never leave the phone — only crashes do.
+
+Analytics is a self-hosted [Umami](https://umami.is) instance, reached directly from
+`MoneyPls/Sources/App/Umami.swift` — no SDK, no third party. It records which screens are reached and whether a scan
+parsed, plus counts: never a merchant, an item name or an amount. The visitor id is a random UUID per install, gone
+when the app is deleted, so there is no IDFA and no tracking prompt. `UMAMI_URL` / `UMAMI_WEBSITE_ID` are build
+settings like the Sentry DSN; leaving either empty ships the app without analytics, as Debug builds always do.

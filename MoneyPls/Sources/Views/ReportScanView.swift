@@ -22,7 +22,10 @@ struct ReportScanButton: View {
         Button(title) { confirm = true }
             .foregroundStyle(Theme.pink)
             .alert("Send this receipt?", isPresented: $confirm) {
-                Button("Attach photo and send") { if MFMailComposeViewController.canSendMail() { showMail = true } else { showShare = true } }
+                Button("Attach photo and send") {
+                    Analytics.track("scan_reported")
+                    if MFMailComposeViewController.canSendMail() { showMail = true } else { showShare = true }
+                }
                 Button("Cancel", role: .cancel) {}
             } message: {
                 Text("Receipts are read on your phone and never leave it on their own. " +

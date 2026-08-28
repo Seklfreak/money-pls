@@ -71,12 +71,18 @@ struct PeopleSheet: View {
                     }
                 }
             }
-            PrimaryButton(title: "Done", height: 52, fontSize: 17, fill: Theme.ink, shadow: Theme.inkDeep, fg: Theme.bg, action: done)
+            PrimaryButton(title: "Done", height: 52, fontSize: 17, fill: Theme.ink, shadow: Theme.inkDeep, fg: Theme.bg) {
+                Analytics.track("people_done", ["count": String(split.people.count)])
+                done()
+            }
                 .disabled(split.people.count < 2).opacity(split.people.count < 2 ? 0.5 : 1)
         }
         .padding(.horizontal, 16).padding(.bottom, 16)
         .background(Theme.bg.ignoresSafeArea())
-        .onAppear { if split.people.isEmpty { focused = true } }
+        .onAppear {
+            Analytics.screen(.people)
+            if split.people.isEmpty { focused = true }
+        }
     }
 
     private func add() { add(name, preferredColor: nil); name = "" }

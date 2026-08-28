@@ -36,8 +36,14 @@ struct HomeView: View {
                                 .font(Theme.text(14)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
                         }.padding(.top, 12)
                         VStack(spacing: 10) {
-                            PrimaryButton(title: "Scan a receipt", icon: "camera.fill", height: 68, fontSize: 20) { showCamera = true }
-                            Button { showPhotos = true } label: { PickPhotosLabel() }.buttonStyle(PressStyle())
+                            PrimaryButton(title: "Scan a receipt", icon: "camera.fill", height: 68, fontSize: 20) {
+                                Analytics.track("scan_started", ["source": "camera"])
+                                showCamera = true
+                            }
+                            Button {
+                                Analytics.track("scan_started", ["source": "photos"])
+                                showPhotos = true
+                            } label: { PickPhotosLabel() }.buttonStyle(PressStyle())
                         }
                         if !splits.isEmpty {
                             VStack(spacing: 10) {
@@ -50,8 +56,8 @@ struct HomeView: View {
                                     Button { path = [route(for: split)] } label: { HistoryRow(split: split) }.buttonStyle(PressStyle())
                                         // Preview shape matches the card, including its raised edge (kept inside the frame below).
                                         .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 22, style: .continuous))
-                                        .contextMenu { Button(role: .destructive) { context.delete(split) } label: { Label("Delete", systemImage: "trash") } }
-                                        .swipeToDelete { context.delete(split) }
+                                        .contextMenu { Button(role: .destructive) { delete(split) } label: { Label("Delete", systemImage: "trash") } }
+                                        .swipeToDelete { delete(split) }
                                 }
                             }
                         }
@@ -67,12 +73,13 @@ struct HomeView: View {
                 }
             }
             .toolbar(.hidden, for: .navigationBar)
+            .onAppear { Analytics.screen(.home) }
         }
         .photosPicker(isPresented: $showPhotos, selection: $photoItem, matching: .images)
-        .fullScreenCover(isPresented: $showCamera) {
+        .fullScreenCover(isPresented: $showCamera, onDismiss: { if processing == nil { Analytics.screen(.home) } }, content: {
             DocumentCamera { image in showCamera = false; if let image { processingCropped = true; processing = image } }
                 .ignoresSafeArea()
-        }
+        })
         .onChange(of: photoItem) { _, item in
             guard let item else { return }
             Task {
@@ -80,7 +87,7 @@ struct HomeView: View {
                 photoItem = nil
             }
         }
-        .fullScreenCover(item: $processing) { image in
+        .fullScreenCover(item: $processing, onDismiss: { if path.isEmpty { Analytics.screen(.home) } }, content: { image in
             ProcessingView(image: image, alreadyCropped: processingCropped) { result in
                 processing = nil
                 if let result { let s = makeSplit(from: result, image: image); path = [.items(s.id)] }
@@ -90,7 +97,12 @@ struct HomeView: View {
                 processing = nil
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { if fromCamera { showCamera = true } else { showPhotos = true } }
             }
-        }
+        })
+    }
+
+    private func delete(_ split: Split) {
+        Analytics.track("split_deleted")
+        context.delete(split)
     }
 
     private func split(_ id: UUID) -> Split? { splits.first { $0.id == id } }

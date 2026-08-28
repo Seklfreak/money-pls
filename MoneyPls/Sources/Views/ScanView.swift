@@ -48,10 +48,19 @@ struct ProcessingView: View {
                 .raised(Capsule(), fill: Theme.bg, shadow: Theme.line, depth: 3)
                 if failed {
                     VStack(spacing: 10) {
-                        PrimaryButton(title: "Try another photo", icon: "camera.fill", action: retry)
-                        SecondaryButton(title: "Add items by hand") { done(ParsedReceipt()) }
+                        PrimaryButton(title: "Try another photo", icon: "camera.fill") {
+                            Analytics.track("scan_retried")
+                            retry()
+                        }
+                        SecondaryButton(title: "Add items by hand") {
+                            Analytics.track("manual_entry")
+                            done(ParsedReceipt())
+                        }
                         HStack(spacing: 18) {
-                            Button("Cancel") { done(nil) }
+                            Button("Cancel") {
+                                Analytics.track("scan_abandoned")
+                                done(nil)
+                            }
                             ReportScanButton(image: image, trace: ScanTrace.shared.text, context: status)
                         }.font(Theme.text(14, .extrabold)).foregroundStyle(Theme.faint).padding(.top, 4)
                     }.padding(.horizontal, 32)
@@ -61,6 +70,7 @@ struct ProcessingView: View {
         .onAppear {
             guard !started else { return }
             started = true
+            Analytics.screen(.scan)
             let image = image, cropped = alreadyCropped
             // Detached on purpose: SwiftUI cancels a view-bound `.task` when the cover is re-identified,
             // and that cancellation propagates into Vision as `requestCancelled`.
@@ -74,11 +84,21 @@ struct ProcessingView: View {
                     }
                     let result = r
                     await MainActor.run {
-                        if result.items.isEmpty { status = "Couldn't find any prices on that one"; failed = true } else { done(result) }
+                        if result.items.isEmpty {
+                            Analytics.track("scan_failed", ["reason": "no_prices"])
+                            status = "Couldn't find any prices on that one"; failed = true
+                        } else {
+                            // The count, never the contents.
+                            Analytics.track("scan_parsed", ["items": String(result.items.count)])
+                            done(result)
+                        }
                     }
                 } catch {
                     traceError("parse failed: \(error)")
-                    await MainActor.run { status = "Couldn't read that photo"; failed = true }
+                    await MainActor.run {
+                        Analytics.track("scan_failed", ["reason": "unreadable"])
+                        status = "Couldn't read that photo"; failed = true
+                    }
                 }
             }
         }
