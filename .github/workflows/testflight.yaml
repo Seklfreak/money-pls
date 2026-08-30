@@ -190,15 +190,17 @@ jobs:
             -authenticationKeyIssuerID "$ISSUER_ID"
 
       # Push this release's changelog to TestFlight as the build's "What to
-      # Test" notes. Best-effort — a failure here only warns, the build is
-      # already uploaded.
+      # Test" notes, then hand it to the testers: TestFlight's automatic
+      # distribution can't be set through the API at all, so every build is
+      # attached to the external group and submitted for beta review here.
+      # Best-effort — a failure only warns, the build is already uploaded.
       - name: Set up Python
         if: steps.gate.outputs.ready == 'true'
         uses: actions/setup-python@v7
         with:
           python-version: "3.14"
 
-      - name: Push changelog to TestFlight (What to Test)
+      - name: Publish the build to TestFlight
         if: steps.gate.outputs.ready == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -218,9 +220,10 @@ jobs:
           [ -z "$NOTES" ] && NOTES="Bug fixes and improvements."
           printf '%s' "$NOTES" > "$RUNNER_TEMP/whats_new.md"
 
-          python scripts/testflight_whats_new.py \
+          python scripts/testflight_publish.py \
             --bundle-id dev.winktech.moneypls \
             --version "$VERSION" --build "$BUILD" \
             --notes-file "$RUNNER_TEMP/whats_new.md" \
+            --groups Public \
             --key-id "$KEY_ID" --issuer-id "$ISSUER_ID" \
             --key-path ~/.appstoreconnect/private_keys/AuthKey_"$KEY_ID".p8
