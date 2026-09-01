@@ -3,3 +3,6 @@ DerivedData/
 build/
 .DS_Store
 Config/Secrets.xcconfig
+
+# Claude Code agent worktrees
+.claude/worktrees/
