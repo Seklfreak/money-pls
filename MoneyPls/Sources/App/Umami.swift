@@ -11,9 +11,11 @@ import UIKit
 @MainActor
 enum Analytics {
     /// Screens as Umami sees them: `rawValue` is the path, `title` the label in the dashboard.
-    /// In order they are the split itself — photo in, cards out.
+    /// The three tabs first, then the split itself — photo in, cards out.
     enum Screen: String {
-        case home
+        case friends
+        case activity
+        case bills
         case scan
         case items
         case people
@@ -23,7 +25,9 @@ enum Analytics {
 
         var title: String {
             switch self {
-            case .home: "Home"
+            case .friends: "Friends"
+            case .activity: "Activity"
+            case .bills: "Bills"
             case .scan: "Reading the receipt"
             case .items: "Items"
             case .people: "Who's splitting"

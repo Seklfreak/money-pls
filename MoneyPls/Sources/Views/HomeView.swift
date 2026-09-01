@@ -2,81 +2,77 @@ import SwiftUI
 import SwiftData
 import PhotosUI
 
-enum Route: Hashable { case items(UUID), assign(UUID), bill(UUID) }
+enum Route: Hashable { case items(UUID), assign(UUID), bill(UUID), friend(UUID) }
 
+/// The three tabs of the shell.
+enum HomeTab: String, CaseIterable, Identifiable {
+    case friends, activity, bills
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .friends: "Friends"
+        case .activity: "Activity"
+        case .bills: "Bills"
+        }
+    }
+    var icon: String {
+        switch self {
+        case .friends: "person.2"
+        case .activity: "clock"
+        case .bills: "doc.plaintext"
+        }
+    }
+}
+
+extension Split {
+    /// Where tapping a split lands: back where it was left off, not always at the bill.
+    var openRoute: Route {
+        if people.count < 2 { return .items(id) }
+        return unassignedItems.isEmpty ? .bill(id) : .assign(id)
+    }
+}
+
+/// The shell: three tabs, each with its own navigation stack. Scanning lives here rather than in
+/// the Friends tab so the camera, the picker and the processing cover survive a tab switch.
 struct HomeView: View {
     @Environment(\.modelContext) private var context
     @Query(sort: \Split.createdAt, order: .reverse) private var splits: [Split]
+    @Query private var friends: [Friend]
+    @State private var tab: HomeTab = .friends
     @State private var path: [Route] = []
+    @State private var activityPath: [Route] = []
+    @State private var billsPath: [Route] = []
     @State private var showCamera = false
     @State private var showPhotos = false
     @State private var photoItem: PhotosPickerItem?
     @State private var processing: UIImage?
     @State private var processingCropped = false
-    @State private var error: String?
-
-    /// Outstanding per currency, formatted — "$50.14" or "$50.14 + €12.00" when the history mixes currencies.
-    var owedText: String? {
-        var byCurrency: [String: Int] = [:]
-        for s in splits { byCurrency[s.currencyCode, default: 0] += Money.outstanding(for: s) }
-        let parts = byCurrency.filter { $0.value > 0 }.sorted { $0.key < $1.key }.map { $0.value.money($0.key) }
-        return parts.isEmpty ? nil : parts.joined(separator: " + ")
-    }
 
     var body: some View {
-        NavigationStack(path: $path) {
-            ZStack {
-                PageBackground(stop: 0.45)
-                ScrollView {
-                    VStack(spacing: 20) {
-                        VStack(spacing: 10) {
-                            Logo(size: 96)
-                            Text("Money pls").font(Theme.disp(34, .bold)).foregroundStyle(Theme.ink)
-                            Text("Scan the receipt, tap who had what,\nsend everyone their share.")
-                                .font(Theme.text(14)).foregroundStyle(Theme.muted).multilineTextAlignment(.center)
-                        }.padding(.top, 12)
-                        VStack(spacing: 10) {
-                            PrimaryButton(title: "Scan a receipt", icon: "camera.fill", height: 68, fontSize: 20) {
-                                Analytics.track("scan_started", ["source": "camera"])
-                                showCamera = true
-                            }
-                            Button {
-                                Analytics.track("scan_started", ["source": "photos"])
-                                showPhotos = true
-                            } label: { PickPhotosLabel() }.buttonStyle(PressStyle())
-                        }
-                        if !splits.isEmpty {
-                            VStack(spacing: 10) {
-                                HStack {
-                                    Text("History").font(Theme.disp(18)).foregroundStyle(Theme.ink)
-                                    Spacer()
-                                    if let owedText { Text("\(owedText) still owed to you").font(Theme.text(12, .extrabold)).foregroundStyle(Theme.muted) }
-                                }.padding(.horizontal, 4)
-                                ForEach(splits) { split in
-                                    Button { path = [route(for: split)] } label: { HistoryRow(split: split) }.buttonStyle(PressStyle())
-                                        // Preview shape matches the card, including its raised edge (kept inside the frame below).
-                                        .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 22, style: .continuous))
-                                        .contextMenu { Button(role: .destructive) { delete(split) } label: { Label("Delete", systemImage: "trash") } }
-                                        .swipeToDelete { delete(split) }
-                                }
-                            }
-                        }
-                    }
-                    .padding(.horizontal, 16).padding(.bottom, 32)
+        ZStack {
+            switch tab {
+            case .friends:
+                NavigationStack(path: $path) {
+                    FriendsView(path: $path, onScan: startCamera, onPickPhotos: startPhotos)
+                        .safeAreaInset(edge: .bottom) { TabBar(selection: $tab) }
+                        .navigationDestination(for: Route.self) { destination($0, path: $path) }
+                }
+            case .activity:
+                NavigationStack(path: $activityPath) {
+                    ActivityView(path: $activityPath)
+                        .safeAreaInset(edge: .bottom) { TabBar(selection: $tab) }
+                        .navigationDestination(for: Route.self) { destination($0, path: $activityPath) }
+                }
+            case .bills:
+                NavigationStack(path: $billsPath) {
+                    BillsView(path: $billsPath)
+                        .safeAreaInset(edge: .bottom) { TabBar(selection: $tab) }
+                        .navigationDestination(for: Route.self) { destination($0, path: $billsPath) }
                 }
             }
-            .navigationDestination(for: Route.self) { route in
-                switch route {
-                case .items(let id): if let s = split(id) { ItemsView(split: s, path: $path) }
-                case .assign(let id): if let s = split(id) { AssignView(split: s, path: $path) }
-                case .bill(let id): if let s = split(id) { BillView(split: s, path: $path) }
-                }
-            }
-            .toolbar(.hidden, for: .navigationBar)
-            .onAppear { Analytics.screen(.home) }
         }
         .photosPicker(isPresented: $showPhotos, selection: $photoItem, matching: .images)
-        .fullScreenCover(isPresented: $showCamera, onDismiss: { if processing == nil { Analytics.screen(.home) } }, content: {
+        .fullScreenCover(isPresented: $showCamera, onDismiss: { if processing == nil { Analytics.screen(.friends) } }, content: {
             DocumentCamera { image in showCamera = false; if let image { processingCropped = true; processing = image } }
                 .ignoresSafeArea()
         })
@@ -87,10 +83,10 @@ struct HomeView: View {
                 photoItem = nil
             }
         }
-        .fullScreenCover(item: $processing, onDismiss: { if path.isEmpty { Analytics.screen(.home) } }, content: { image in
+        .fullScreenCover(item: $processing, onDismiss: { if path.isEmpty { Analytics.screen(.friends) } }, content: { image in
             ProcessingView(image: image, alreadyCropped: processingCropped) { result in
                 processing = nil
-                if let result { let s = makeSplit(from: result, image: image); path = [.items(s.id)] }
+                if let result { let s = makeSplit(from: result, image: image); tab = .friends; path = [.items(s.id)] }
             } retry: {
                 // Reopen whichever source the failed photo came from.
                 let fromCamera = processingCropped
@@ -100,16 +96,25 @@ struct HomeView: View {
         })
     }
 
-    private func delete(_ split: Split) {
-        Analytics.track("split_deleted")
-        context.delete(split)
+    @ViewBuilder private func destination(_ route: Route, path: Binding<[Route]>) -> some View {
+        switch route {
+        case .items(let id): if let s = split(id) { ItemsView(split: s, path: path) }
+        case .assign(let id): if let s = split(id) { AssignView(split: s, path: path) }
+        case .bill(let id): if let s = split(id) { BillView(split: s, path: path) }
+        case .friend(let id): if let f = friends.first(where: { $0.id == id }) { FriendDetailView(friend: f, path: path) }
+        }
+    }
+
+    private func startCamera() {
+        Analytics.track("scan_started", ["source": "camera"])
+        showCamera = true
+    }
+    private func startPhotos() {
+        Analytics.track("scan_started", ["source": "photos"])
+        showPhotos = true
     }
 
     private func split(_ id: UUID) -> Split? { splits.first { $0.id == id } }
-    private func route(for s: Split) -> Route {
-        if s.people.count < 2 { return .items(s.id) }
-        return s.unassignedItems.isEmpty ? .bill(s.id) : .assign(s.id)
-    }
 
     private func makeSplit(from r: ParsedReceipt, image: UIImage) -> Split {
         // No merchant → empty title so the tray shows its "Where was this?" placeholder instead of a fake name.
@@ -128,6 +133,35 @@ struct HomeView: View {
 }
 
 extension UIImage: @retroactive Identifiable { public var id: ObjectIdentifier { ObjectIdentifier(self) } }
+
+/// The bar itself: the same white 28pt shelf the Footer uses, so the two read as one family.
+private struct TabBar: View {
+    @Binding var selection: HomeTab
+    var body: some View {
+        HStack(spacing: 0) {
+            ForEach(HomeTab.allCases) { tab in
+                Button {
+                    if selection != tab { UISelectionFeedbackGenerator().selectionChanged() }
+                    selection = tab
+                } label: {
+                    VStack(spacing: 4) {
+                        Image(systemName: tab.icon).font(.system(size: 22, weight: .semibold))
+                        Text(tab.title).font(Theme.text(11, .extrabold))
+                    }
+                    .foregroundStyle(selection == tab ? Theme.pink : Theme.faint)
+                    .frame(maxWidth: .infinity).contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(selection == tab ? [.isSelected, .isButton] : .isButton)
+            }
+        }
+        .padding(.top, 12).padding(.bottom, 8).padding(.horizontal, 16)
+        .background(
+            UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28).fill(.white)
+                .shadow(color: Color(hex: 0x785028).opacity(0.12), radius: 15, y: -8).ignoresSafeArea(edges: .bottom)
+        )
+    }
+}
 
 struct HistoryRow: View {
     let split: Split
