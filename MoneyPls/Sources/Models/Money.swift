@@ -66,6 +66,7 @@ enum Money {
         var soloCents = Array(repeating: 0, count: n)
         var sharedExact = Array(repeating: 0.0, count: n)
         var sharedCount = 0
+        var sharedName = ""
         var itemsTotal = 0
 
         for (index, item) in split.sortedItems.enumerated() {
@@ -74,6 +75,7 @@ enum Money {
             itemsTotal += item.priceCents
             if item.everyone && n > 1 {
                 sharedCount += 1
+                sharedName = item.displayName
                 for i in idx { sharedExact[i] += Double(item.priceCents) / Double(n) }
             } else {
                 let parts = divide(item.priceCents, into: idx.count, offset: index)
@@ -98,7 +100,10 @@ enum Money {
         return people.enumerated().map { i, p in
             var l = lines[i]
             if sharedCount > 0 {
-                l.append(ShareLine(label: sharedCount == 1 ? "1 shared plate" : "\(sharedCount) shared plates", cents: itemCents[i] - soloCents[i]))
+                // A typed expense split equally is one "everyone" line — its share reads as "Groceries · ⅓", not a plate.
+                let label = split.splitKind == .typed && sharedCount == 1 ? "\(sharedName) · \(fraction(n))"
+                    : sharedCount == 1 ? "1 shared plate" : "\(sharedCount) shared plates"
+                l.append(ShareLine(label: label, cents: itemCents[i] - soloCents[i]))
             }
             if taxTip[i] > 0 { l.append(ShareLine(label: split.tipCents > 0 ? "Tax + tip" : "Tax", cents: taxTip[i])) }
             return PersonBill(person: p, currency: split.currencyCode, lines: l, itemCents: itemCents[i], taxTipCents: taxTip[i])
