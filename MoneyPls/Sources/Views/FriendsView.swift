@@ -129,7 +129,11 @@ struct FriendsView: View {
     }
 
     private func row(_ balance: FriendBalance) -> some View {
-        let net = balance.byCurrency.values.reduce(0, +)
+        // Which way round is per currency, never a sum: a dollar debt of mine and a euro debt of
+        // theirs are two open lines, and adding them together would tag the row with whichever
+        // number happened to be bigger.
+        let open = balance.byCurrency.values.filter { $0 != 0 }
+        let theyOwe = open.contains { $0 > 0 }, iOwe = open.contains { $0 < 0 }
         let amounts = Money.formatByCurrency(balance.byCurrency.mapValues { abs($0) }).components(separatedBy: " + ")
         return HStack(spacing: 12) {
             Avatar(initial: balance.friend.initial, color: Theme.avatarColor(balance.friend.colorIndex), size: 40)
@@ -145,7 +149,9 @@ struct FriendsView: View {
                 }
                 if balance.isClear {
                     StatusTag(text: "all square", color: Theme.muted)
-                } else if net < 0 {
+                } else if theyOwe && iOwe {
+                    StatusTag(text: "both ways", color: Theme.amber)
+                } else if iOwe {
                     StatusTag(text: "you owe", color: Theme.amber)
                 } else {
                     StatusTag(text: "owes you", color: Theme.green)
@@ -161,6 +167,9 @@ struct FriendsView: View {
     /// What is still open with this friend, in the words of the bills themselves.
     private func subtitle(for balance: FriendBalance) -> String {
         guard let me else { return "" }
+        // A settle-up closes the balance without ticking each split, so the bills stay "open" here
+        // long after the row says "all square" — the balance is the thing being described.
+        guard !balance.isClear else { return "all settled up" }
         let open = Money.ledger(for: balance.friend, splits: splits, payments: payments, me: me)
             .compactMap { entry -> String? in
                 if case .split(let split, _, let settled) = entry, !settled { return split.displayTitle }

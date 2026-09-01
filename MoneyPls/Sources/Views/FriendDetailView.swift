@@ -189,7 +189,14 @@ private struct LedgerPaymentRow: View {
                 Text("\(ledgerDate(payment.date)) · payment").font(Theme.text(12)).foregroundStyle(Theme.muted)
             }
             Spacer(minLength: 8)
-            Text(payment.cents.money(payment.currencyCode)).font(Theme.disp(16)).foregroundStyle(Theme.muted).monospacedDigit()
+            // The note goes where a split row puts "you lent" — it is what this row has to say
+            // about itself, and the settle-up sheet asks for it precisely so it can be read back.
+            VStack(alignment: .trailing, spacing: 1) {
+                if !payment.note.isEmpty {
+                    Text(payment.note).font(Theme.text(11, .extrabold)).foregroundStyle(Theme.muted).lineLimit(1)
+                }
+                Text(payment.cents.money(payment.currencyCode)).font(Theme.disp(16)).foregroundStyle(Theme.muted).monospacedDigit()
+            }
         }
         .padding(.vertical, 12)
     }
