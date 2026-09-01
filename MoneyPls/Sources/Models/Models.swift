@@ -16,10 +16,19 @@ final class Split {
     @Attribute(.externalStorage) var receiptImage: Data?
     /// Parse log of the scan this split came from, so a bad read can be reported later with the photo.
     @Attribute(.externalStorage) var parseTrace: String?
+    /// How the split was made: scanned from a receipt, or typed in by hand. See `SplitKind`.
+    var kind: String = SplitKind.scanned.rawValue
     @Relationship(deleteRule: .cascade, inverse: \LineItem.split) var items: [LineItem] = []
     @Relationship(deleteRule: .cascade, inverse: \Person.split) var people: [Person] = []
+    /// Payments the per-bill "paid" toggle wrote down. They go when the split goes.
+    @Relationship(deleteRule: .cascade, inverse: \Payment.split) var payments: [Payment] = []
 
     init(title: String) { self.title = title }
+
+    var splitKind: SplitKind {
+        get { SplitKind(rawValue: kind) ?? .scanned }
+        set { kind = newValue.rawValue }
+    }
 
     /// Title for display: falls back to a date when the user never named the split.
     var displayTitle: String { title.isEmpty ? "Split on \(createdAt.formatted(.dateTime.month(.abbreviated).day()))" : title }
@@ -40,6 +49,8 @@ final class Person {
     /// Has this person paid the payer back? (Stored under the old name so existing splits keep their state.)
     @Attribute(originalName: "paid") var settled: Bool = false
     var split: Split?
+    /// Who this is, across splits. Optional so stores that predate Friends migrate lightweight.
+    var friend: Friend?
 
     init(name: String, colorIndex: Int, order: Int) { self.name = name; self.colorIndex = colorIndex; self.order = order }
     var initial: String { String(name.trimmingCharacters(in: .whitespaces).prefix(1)).uppercased() }

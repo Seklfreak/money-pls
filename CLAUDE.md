@@ -23,6 +23,16 @@
   and `UMAMI_WEBSITE_ID` are repo secrets passed as build settings in `testflight.yaml` — **the archive never reads
   `Secrets.xcconfig`**, so a value missing there ships the app silent. CI compile-checks Debug only, which does not
   build the `#if !DEBUG` block; a local Release build is the only check that covers it.
+- The store is versioned (`Models/Schema.swift`): `SchemaV1` holds *frozen copies* of the pre-Friends models —
+  they describe bytes already on people's phones, so never "keep them in sync" with `Models.swift`. V2 adds
+  `Friend`/`Payment` (new entities + optional properties only, hence a lightweight stage). A lightweight stage has no
+  `didMigrate`, so filling the new rows in is `FriendsBackfill.run`, once on launch, guarded by a UserDefaults flag
+  *and* by "no Friend rows yet". `MoneyPlsApp` builds the container by hand — `.modelContainer(for:)` would skip the
+  plan. `MigrationTests` writes a real V1 store to disk and reopens it, which is the only check that covers this.
+- Balances (`Models/Balances.swift`) are pure functions over arrays, never queries, so they are testable. Two rules
+  that look redundant but aren't: `Person.settled` is the source of truth for the per-bill toggle, and payments
+  carrying a `split` are *ignored* by `Money.balances` — the toggle writes both, and counting both settles twice.
+  Currencies never convert; every total is a `[String: Int]`.
 - Public repo: no homelab/cluster details, no personal data, no test receipt photos in git.
 - Shipping: same pipeline as Moodring (Test → ai-release-action → TestFlight). The TestFlight job is gated on the
   `APP_STORE_CONNECT_KEY_ID` secret; set it only once the App Store Connect app record for

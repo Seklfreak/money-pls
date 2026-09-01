@@ -37,7 +37,7 @@ struct BillView: View {
                     }
                     VStack(spacing: 12) {
                         ForEach(bills.filter { $0.person.id != payer?.id }) { bill in
-                            Button { sharing = bill } label: { BillCard(bill: bill) }.buttonStyle(PressStyle())
+                            Button { sharing = bill } label: { BillCard(bill: bill, split: split) }.buttonStyle(PressStyle())
                         }
                         if let payer, let mine = bills.first(where: { $0.person.id == payer.id }) {
                             HStack(spacing: 12) {
@@ -72,6 +72,8 @@ struct BillView: View {
 
 struct BillCard: View {
     let bill: PersonBill
+    let split: Split
+    @Environment(\.modelContext) private var context
     var body: some View {
         let color = Theme.avatarColor(bill.person.colorIndex)
         VStack(spacing: 0) {
@@ -86,7 +88,12 @@ struct BillCard: View {
                     .strikethrough(bill.person.settled, color: Theme.green)
                 Button {
                     bill.person.settled.toggle()
-                    if bill.person.settled { Analytics.track("person_settled") }
+                    if bill.person.settled {
+                        Analytics.track("person_settled")
+                        recordPayment()
+                    } else {
+                        dropPayment()
+                    }
                 } label: {
                     Image(systemName: bill.person.settled ? "checkmark.circle.fill" : "circle").font(.system(size: 26, weight: .semibold))
                         .foregroundStyle(bill.person.settled ? Theme.green : Theme.sand)
@@ -110,5 +117,17 @@ struct BillCard: View {
         }
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .card()
+    }
+
+    /// The toggle is a payment too, so the friend's history reads "Ann paid you $12" and not just a
+    /// ticked box. Balances keep reading `settled` and skip split-linked payments, so nothing double-counts.
+    private func recordPayment() {
+        guard let payer = bill.person.friend, let payee = split.payer?.friend, payer.id != payee.id else { return }
+        context.insert(Payment(from: payer, to: payee, cents: bill.totalCents, currencyCode: split.currencyCode, split: split))
+    }
+
+    private func dropPayment() {
+        guard let payer = bill.person.friend else { return }
+        for payment in Array(split.payments) where payment.fromFriend?.id == payer.id { context.delete(payment) }
     }
 }

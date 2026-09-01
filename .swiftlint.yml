@@ -3,6 +3,7 @@
 # enforced in CI).
 included:
   - MoneyPls/Sources
+  - MoneyPls/Tests
 
 line_length:
   warning: 200

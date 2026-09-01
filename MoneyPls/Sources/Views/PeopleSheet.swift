@@ -6,16 +6,16 @@ struct PeopleSheet: View {
     @Bindable var split: Split
     let done: () -> Void
     @Environment(\.modelContext) private var context
-    @Query(sort: \Person.order) private var everyone: [Person]
+    @Query private var friends: [Friend]
     @State private var name = ""
     @FocusState private var focused: Bool
 
-    /// Names used in earlier splits, most recent first, not already in this one.
-    private var suspects: [(name: String, color: Int)] {
-        var seen = Set(split.people.map { $0.name.lowercased() }), out: [(String, Int)] = []
-        let recent = everyone.filter { $0.split?.id != split.id }.sorted { ($0.split?.createdAt ?? .distantPast) > ($1.split?.createdAt ?? .distantPast) }
-        for p in recent where !seen.contains(p.name.lowercased()) { seen.insert(p.name.lowercased()); out.append((p.name, p.colorIndex)) }
-        return Array(out.prefix(8))
+    /// Friends from earlier splits, most recently used first, minus whoever is already here.
+    private var suspects: [Friend] {
+        let here = Set(split.people.map { $0.name.lowercased() })
+        return friends.filter { !here.contains($0.name.lowercased()) }
+            .sorted { ($0.lastUsedAt, $0.createdAt) > ($1.lastUsedAt, $1.createdAt) }
+            .prefix(8).map { $0 }
     }
 
     var body: some View {
@@ -58,9 +58,9 @@ struct PeopleSheet: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text("USUAL SUSPECTS").font(Theme.text(12, .extrabold)).foregroundStyle(Theme.muted).kerning(0.5)
                             FlowLayout(spacing: 8) {
-                                ForEach(suspects, id: \.name) { s in
-                                    Button { add(s.name, preferredColor: s.color) } label: {
-                                        HStack(spacing: 6) { Avatar(initial: String(s.name.prefix(1)).uppercased(), color: Theme.avatarColor(s.color), size: 28); Text(s.name).lineLimit(1) }
+                                ForEach(suspects) { s in
+                                    Button { add(s.name, preferredColor: s.colorIndex) } label: {
+                                        HStack(spacing: 6) { Avatar(initial: s.initial, color: Theme.avatarColor(s.colorIndex), size: 28); Text(s.name).lineLimit(1) }
                                             .font(Theme.text(14, .extrabold)).foregroundStyle(Theme.body)
                                             .padding(.leading, 6).padding(.trailing, 14).frame(height: 40)
                                             .raised(Capsule(), fill: .white, shadow: Theme.line, depth: 2)
@@ -90,9 +90,13 @@ struct PeopleSheet: View {
         let n = String(raw.trimmingCharacters(in: .whitespaces).prefix(24))   // a first name, not a paragraph
         guard !n.isEmpty, !split.people.contains(where: { $0.name.lowercased() == n.lowercased() }) else { return }
         let used = Set(split.people.map(\.colorIndex))
-        var color = preferredColor ?? split.people.count
+        let friend = Friend.resolve(name: n, in: context, preferredColor: preferredColor ?? split.people.count)
+        // The Person keeps its own copy of the name and colour, so an old split still reads the
+        // way it did — but a new one starts from whatever the friend is called now.
+        var color = friend.colorIndex
         if used.contains(color) { color = (0..<Theme.avatarColors.count).first { !used.contains($0) } ?? split.people.count }
-        let p = Person(name: n, colorIndex: color, order: (split.people.map(\.order).max() ?? -1) + 1)
+        let p = Person(name: friend.name, colorIndex: color, order: (split.people.map(\.order).max() ?? -1) + 1)
+        p.friend = friend
         split.people.append(p)
         if split.payerID == nil { split.payerID = p.id }
         focused = true

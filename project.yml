@@ -68,3 +68,39 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: Apple Distribution
           PROVISIONING_PROFILE_SPECIFIER: Money pls App Store
+  MoneyPlsTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - MoneyPls/Tests
+    dependencies:
+      - target: MoneyPls
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.winktech.moneypls.tests
+        SWIFT_VERSION: 6.0
+        SWIFT_STRICT_CONCURRENCY: minimal
+        GENERATE_INFOPLIST_FILE: true
+        # Hosted by the app so `@testable import MoneyPls` sees the real thing.
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/MoneyPls.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MoneyPls
+        BUNDLE_LOADER: $(TEST_HOST)
+        CODE_SIGN_STYLE: Automatic
+schemes:
+  # Shared so `xcodebuild -scheme MoneyPls test` works from a clean checkout.
+  MoneyPls:
+    build:
+      targets:
+        MoneyPls: all
+        MoneyPlsTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - MoneyPlsTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

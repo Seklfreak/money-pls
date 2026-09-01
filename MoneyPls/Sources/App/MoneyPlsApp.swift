@@ -4,6 +4,8 @@ import SwiftUI
 
 @main
 struct MoneyPlsApp: App {
+    private let container: ModelContainer
+
     init() {
         // Debug builds stay quiet — local runs would drown real crash reports, and the placeholder
         // xcconfig has no DSN anyway. Receipts never leave the phone: no breadcrumbs of user data,
@@ -19,6 +21,15 @@ struct MoneyPlsApp: App {
         // xcconfig has no Umami credentials anyway.
         Analytics.configure()
         #endif
+
+        // Built by hand so the versioned migration plan runs; the backfill then gives Friends to
+        // splits that predate them. A store we can't open is unrecoverable here — nothing to show.
+        do {
+            container = try ModelStore.container()
+        } catch {
+            fatalError("Could not open the Money pls store: \(error)")
+        }
+        FriendsBackfill.run(in: container.mainContext)
     }
 
     var body: some Scene {
@@ -29,6 +40,6 @@ struct MoneyPlsApp: App {
                 // Fonts scale with Dynamic Type; the tray's fixed columns aren't reflowed for the AX sizes yet, so cap there.
                 .dynamicTypeSize(...DynamicTypeSize.accessibility1)
         }
-        .modelContainer(for: [Split.self, Person.self, LineItem.self])
+        .modelContainer(container)
     }
 }
