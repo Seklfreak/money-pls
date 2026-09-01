@@ -89,11 +89,14 @@ struct FriendDetailView: View {
                     }
                 }
             }
+            // Both 48pt so they sit on one baseline, and the row keeps the 5pt the pink button's
+            // raised edge draws below itself — the card's own padding would cut it off.
             HStack(spacing: 10) {
                 PrimaryButton(title: "Settle up", icon: "checkmark", height: 48, fontSize: 16) { settling = true }
-                SecondaryButton(title: "Money pls", icon: "square.and.arrow.up") { sharing = true }
+                SecondaryButton(title: "Money pls", icon: "square.and.arrow.up", height: 48) { sharing = true }
                     .disabled(theirs.isEmpty).opacity(theirs.isEmpty ? 0.5 : 1)
             }
+            .padding(.bottom, 5)
         }
         .padding(.horizontal, 16).padding(.top, 18).padding(.bottom, 16)
         .card()

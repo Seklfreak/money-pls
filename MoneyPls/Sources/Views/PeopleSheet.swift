@@ -7,8 +7,6 @@ struct PeopleSheet: View {
     let done: () -> Void
     @Environment(\.modelContext) private var context
     @Query private var friends: [Friend]
-    @State private var name = ""
-    @State private var showContacts = false
     @FocusState private var focused: Bool
 
     /// Friends from earlier splits, most recently used first, minus whoever is already here.
@@ -28,20 +26,8 @@ struct PeopleSheet: View {
                      : "Straight from Contacts, or just a first name. No accounts, no fuss.")
                     .font(Theme.text(13)).foregroundStyle(Theme.muted)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            VStack(spacing: 10) {
-                PrimaryButton(title: "Pick from Contacts", icon: "person.2.fill", height: 52, fontSize: 17) { showContacts = true }
-                HStack(spacing: 8) {
-                    TextField(split.people.isEmpty ? "Your name" : "or type a name", text: $name).focused($focused)
-                        .font(Theme.text(16)).foregroundStyle(Theme.ink).submitLabel(.done).onSubmit(add)
-                        .padding(.horizontal, 16).frame(height: 52).frame(maxWidth: .infinity)
-                        .raised(Capsule(), fill: .white, shadow: Theme.line, depth: 3)
-                    // Quiet next to the pink Contacts button — two shouting buttons on one row read as a choice you have to make.
-                    Button(action: add) {
-                        Text("Add").font(Theme.disp(16)).foregroundStyle(typed.isEmpty ? Theme.faint : Theme.ink)
-                            .padding(.horizontal, 20).frame(height: 52)
-                            .raised(Capsule(), fill: .white, shadow: Theme.line, depth: 3)
-                    }.buttonStyle(PressStyle()).disabled(typed.isEmpty)
-                }
+            AddPersonBar(placeholder: split.people.isEmpty ? "Your name" : "or type a name", focus: $focused) { name, identifier in
+                add(name, preferredColor: nil, contactIdentifier: identifier)
             }
             ScrollView {
                 VStack(spacing: 18) {
@@ -90,18 +76,8 @@ struct PeopleSheet: View {
             Analytics.screen(.people)
             if split.people.isEmpty { focused = true }
         }
-        // The picker is presented from here rather than wrapped in a `.sheet` — see `ContactPicker`.
-        .background(ContactPicker(presented: $showContacts, onPick: picked))
     }
 
-    private var typed: String { name.trimmingCharacters(in: .whitespaces) }
-
-    private func picked(_ contacts: [PickedContact]) {
-        Analytics.track("contacts_picked", ["count": String(contacts.count)])
-        for contact in contacts { add(contact.name, preferredColor: nil, contactIdentifier: contact.identifier) }
-    }
-
-    private func add() { add(name, preferredColor: nil); name = "" }
     private func add(_ raw: String, preferredColor: Int?, contactIdentifier: String? = nil) {
         let n = String(raw.trimmingCharacters(in: .whitespaces).prefix(24))   // a first name, not a paragraph
         guard !n.isEmpty, !split.people.contains(where: { $0.name.lowercased() == n.lowercased() }) else { return }

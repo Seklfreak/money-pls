@@ -172,7 +172,7 @@ struct HistoryRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 Text(split.displayTitle).font(Theme.disp(17)).foregroundStyle(Theme.ink).lineLimit(2)
                 HStack(spacing: 8) {
-                    Text(split.createdAt.formatted(.relative(presentation: .named, unitsStyle: .abbreviated)).capitalizedFirst)
+                    Text(historyDate(split.createdAt) + (split.splitKind == .typed ? " · typed in" : ""))
                         .font(Theme.text(12)).foregroundStyle(Theme.muted).lineLimit(1).fixedSize()
                     if !split.people.isEmpty {
                         Text("·").foregroundStyle(Theme.muted)
@@ -198,6 +198,14 @@ struct HistoryRow: View {
         .card()
         .padding(.bottom, 4)   // room for the raised edge so the context-menu preview doesn't cut it off
     }
+}
+
+/// A day word beats "3 wks ago" on a list you scan: "Today", "Yesterday", then the date itself.
+private func historyDate(_ date: Date) -> String {
+    let calendar = Calendar.current
+    if calendar.isDateInToday(date) { return "Today" }
+    if calendar.isDateInYesterday(date) { return "Yesterday" }
+    return date.formatted(.dateTime.month(.abbreviated).day())
 }
 
 struct StatusTag: View {

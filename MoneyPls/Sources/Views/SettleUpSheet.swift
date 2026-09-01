@@ -37,7 +37,7 @@ struct SettleUpSheet: View {
         return VStack(spacing: 14) {
             VStack(alignment: .leading, spacing: 2) {
                 Text("All square with \(friend.name)?").font(Theme.disp(24, .bold)).foregroundStyle(Theme.ink)
-                Text(owed < 0 ? "Record what you paid back." : "Record what came back. Nothing is sent anywhere.")
+                Text(subtitle(open: open, owed: owed))
                     .font(Theme.text(13)).foregroundStyle(Theme.muted)
             }.frame(maxWidth: .infinity, alignment: .leading).padding(.top, 18)
             directionCard(open: open, owed: owed, cents: cents, me: me)
@@ -75,8 +75,11 @@ struct SettleUpSheet: View {
                 .monospacedDigit().lineLimit(1).minimumScaleFactor(0.5)
             FlowLayout(spacing: 8) {
                 ForEach(openCurrencies(open), id: \.self) { code in
-                    chip(label: code == currency && !part ? "\(abs(open[code] ?? 0).money(code)) · all of it" : abs(open[code] ?? 0).money(code),
-                         on: code == currency) {
+                    // In Part mode the amount comes from the field, so the currency is only *which*
+                    // currency: outlined, not filled. Two ink pills at once would read as two answers.
+                    let picked = code == currency
+                    chip(label: picked && !part ? "\(abs(open[code] ?? 0).money(code)) · all of it" : abs(open[code] ?? 0).money(code),
+                         on: picked && !part, outlined: picked && part) {
                         currency = code
                     }
                 }
@@ -136,12 +139,31 @@ struct SettleUpSheet: View {
         }
     }
 
-    private func chip(label: String, on: Bool, action: @escaping () -> Void) -> some View {
+    private func chip(label: String, on: Bool, outlined: Bool = false, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Text(label).font(Theme.disp(13)).foregroundStyle(on ? Theme.bg : Theme.body).monospacedDigit()
+            Text(label).font(Theme.disp(13)).foregroundStyle(on ? Theme.bg : (outlined ? Theme.ink : Theme.body)).monospacedDigit()
                 .padding(.horizontal, 14).padding(.vertical, 8)
                 .raised(Capsule(), fill: on ? Theme.ink : .white, shadow: on ? Theme.inkDeep : Theme.line, depth: 2)
-        }.buttonStyle(PressStyle())
+                .overlay { if outlined { Capsule().strokeBorder(Theme.ink, lineWidth: 1.5) } }
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityAddTraits(on || outlined ? [.isSelected, .isButton] : .isButton)
+    }
+
+    /// What the sheet is for, in one line. More than one open currency is the thing worth saying:
+    /// they never convert, so settling both is two payments and the chips are the choice.
+    private func subtitle(open: [String: Int], owed: Int) -> String {
+        let count = openCurrencies(open).count
+        guard count > 1 else {
+            return owed < 0 ? "Record what you paid back." : "Record what came back. Nothing is sent anywhere."
+        }
+        return "\(Self.spelled(count).capitalizedFirst) currencies, \(Self.spelled(count)) payments — pick one."
+    }
+
+    /// Spelled out as far as anyone plausibly has currencies open; past that the digit is fine.
+    private static func spelled(_ n: Int) -> String {
+        let words = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight"]
+        return n >= 0 && n < words.count ? words[n] : "\(n)"
     }
 
     private func balance(me: Friend) -> [String: Int] {

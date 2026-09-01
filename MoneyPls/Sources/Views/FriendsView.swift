@@ -13,6 +13,9 @@ struct FriendsView: View {
     @Query(filter: #Predicate<Friend> { $0.isMe }) private var meRows: [Friend]
     @State private var showYou = false
     @State private var showAdd = false
+    /// Everyone you are square with is one dashed row until you ask for them. Local to the view on
+    /// purpose: it is a way of looking at the list, not something to remember about it.
+    @State private var showSquare = false
 
     private var me: Friend? { meRows.first }
     private var balances: [FriendBalance] {
@@ -116,15 +119,53 @@ struct FriendsView: View {
     }
 
     private func friends(_ balances: [FriendBalance]) -> some View {
-        VStack(spacing: 10) {
+        // Nothing open is nothing to do: those friends collapse to one row at the end so the ones
+        // that still owe (or are owed) don't scroll away underneath them.
+        let square = balances.filter(\.isClear)
+        let shown = showSquare ? balances : balances.filter { !$0.isClear }
+        return VStack(spacing: 10) {
             HStack {
                 Text("Friends").font(Theme.disp(18)).foregroundStyle(Theme.ink)
                 Spacer()
                 Text("from your splits").font(Theme.text(12, .extrabold)).foregroundStyle(Theme.muted)
             }.padding(.horizontal, 4)
-            ForEach(balances) { balance in
+            ForEach(shown) { balance in
                 Button { path.append(.friend(balance.friend.id)) } label: { row(balance) }.buttonStyle(PressStyle())
             }
+            if !square.isEmpty && !showSquare { squareRow(square) }
+        }
+    }
+
+    /// "Priya, Malik and 8 more · all square" — dashed, because there is nothing owed inside it.
+    private func squareRow(_ square: [FriendBalance]) -> some View {
+        let label = squareLabel(square)
+        return Button { withAnimation(.snappy) { showSquare = true } } label: {
+            HStack(spacing: 12) {
+                HStack(spacing: -8) {
+                    ForEach(square.prefix(4)) { balance in
+                        Avatar(initial: balance.friend.initial, color: Theme.avatarColor(balance.friend.colorIndex), size: 28)
+                    }
+                }
+                Text(label).font(Theme.text(14, .extrabold)).foregroundStyle(Theme.body).lineLimit(1)
+                Spacer(minLength: 8)
+                StatusTag(text: "all square", color: Theme.muted)
+            }
+            .padding(.horizontal, 16).padding(.vertical, 12)
+            .background(RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .strokeBorder(Theme.sand, style: StrokeStyle(lineWidth: 2, dash: [6, 5])))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PressStyle())
+        .accessibilityLabel("\(label), all square")
+        .accessibilityHint("Show them")
+    }
+
+    private func squareLabel(_ square: [FriendBalance]) -> String {
+        let names = square.map(\.friend.name)
+        switch names.count {
+        case 1: return names[0]
+        case 2: return "\(names[0]) and \(names[1])"
+        default: return "\(names[0]), \(names[1]) and \(names.count - 2) more"
         }
     }
 

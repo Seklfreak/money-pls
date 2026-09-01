@@ -13,7 +13,13 @@ Everything runs on the phone — no accounts, no server, no per-receipt AI cost:
   gets one try, and its answer is used only if it reconciles better (`Parsing/ReceiptRepair.swift`).
 - **Split**: everything is shared unless you tap it; tax + tip pro-rata on each person's items; cents always sum exactly.
 - **Share**: a rendered card image + plain text through the system share sheet. No links, no payment handles.
-- **History**: SwiftData; "usual suspects" come from earlier splits; tap the circle on a bill card to mark paid.
+- **Friends**: the people you split with are friends across bills, picked from Contacts (the system picker, no
+  permission prompt) or typed. The Friends tab shows who owes whom, per currency and never converted
+  ("$42.10 + €18.00"); a friend's page lists every bill and payment between you; "Settle up" records what came back.
+- **Typed expenses**: no receipt? Add an expense — amount, who paid, split equally, by shares or exact — and it becomes a
+  bill like any other.
+- **Activity and Bills**: every bill and payment newest first; tap the circle on a bill card to mark paid.
+- Still no accounts: friends are names, balances are your own ledger, the card is how you ask.
 
 ## Build
 

@@ -26,7 +26,9 @@ struct AddExpenseSheet: View {
     @State private var weights: [UUID: Int] = [:]
     @State private var exact: [UUID: Int] = [:]
     @State private var done = false
+    @State private var adding = false
     @FocusState private var amountFocused: Bool
+    @FocusState private var nameFocused: Bool
 
     init(onDone: @escaping (Split?) -> Void) { self.onDone = onDone }
 
@@ -78,7 +80,16 @@ struct AddExpenseSheet: View {
             }
             DottedRule().padding(.vertical, 10)
             label("PAID BY")
-            FlowLayout(spacing: 8) { ForEach(everyone) { payerChip($0) } }.padding(.top, 8)
+            FlowLayout(spacing: 8) {
+                ForEach(everyone) { payerChip($0) }
+                // "Never mind" with nobody to go back to would only re-empty the tray.
+                if !adding || everyone.count >= 2 { addChip }
+            }.padding(.top, 8)
+            // Named right here, or the sheet is a dead end on a store with nobody in it yet.
+            if adding {
+                AddPersonBar(placeholder: me == nil ? "Your name" : "or type a name", focus: $nameFocused, onAdd: addPerson)
+                    .padding(.top, 12)
+            }
             DottedRule().padding(.vertical, 10)
             HStack(spacing: 8) {
                 label("SPLIT")
@@ -147,6 +158,23 @@ struct AddExpenseSheet: View {
         }.buttonStyle(PressStyle())
     }
 
+    /// The way into `AddPersonBar`: dashed, so it reads as the gap at the end of the row rather than
+    /// as one more person already on the split.
+    private var addChip: some View {
+        Button {
+            adding.toggle()
+            nameFocused = adding
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: adding ? "xmark" : "plus").font(.system(size: 12, weight: .heavy))
+                Text(adding ? "Never mind" : "Add someone").lineLimit(1)
+            }
+            .font(Theme.text(14, .extrabold)).foregroundStyle(Theme.muted)
+            .padding(.horizontal, 14).frame(height: 40)
+            .background(Capsule().strokeBorder(Theme.sand, style: StrokeStyle(lineWidth: 2, dash: [5, 4])))
+        }.buttonStyle(PressStyle())
+    }
+
     private func row(_ friend: Friend) -> some View {
         let on = chosen.contains(friend.id)
         return HStack(spacing: 10) {
@@ -175,20 +203,26 @@ struct AddExpenseSheet: View {
     /// ×1 ×2 ×3 … how many shares of the bill this one is worth.
     private func weightStepper(_ friend: Friend) -> some View {
         let weight = weights[friend.id] ?? 1
+        // "×2" next to an avatar says everything by sight and nothing out loud, so each button
+        // carries who it is about and what it is worth now, and the hint says what it does.
+        let spoken = "\(name(friend)), \(weight) share\(weight == 1 ? "" : "s")"
         return HStack(spacing: 2) {
-            stepButton("minus", enabled: weight > 1) { weights[friend.id] = weight - 1 }
+            stepButton("minus", label: spoken, hint: "Remove a share", enabled: weight > 1) { weights[friend.id] = weight - 1 }
             Text("×\(weight)").font(Theme.text(13, .extrabold)).foregroundStyle(Theme.ink).monospacedDigit().frame(width: 24)
-            stepButton("plus", enabled: weight < 9) { weights[friend.id] = weight + 1 }
+                .accessibilityHidden(true)
+            stepButton("plus", label: spoken, hint: "Add a share", enabled: weight < 9) { weights[friend.id] = weight + 1 }
         }
         .padding(.horizontal, 4).frame(height: 30)
         .background(Capsule().fill(Theme.bg))
     }
 
-    private func stepButton(_ system: String, enabled: Bool, action: @escaping () -> Void) -> some View {
+    private func stepButton(_ system: String, label: String, hint: String, enabled: Bool, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: system).font(.system(size: 11, weight: .heavy)).foregroundStyle(enabled ? Theme.body : Theme.line)
                 .frame(width: 24, height: 26)
-        }.buttonStyle(PressStyle()).disabled(!enabled)
+        }
+        .buttonStyle(PressStyle()).disabled(!enabled)
+        .accessibilityLabel(label).accessibilityHint(hint)
     }
 
     // MARK: - What the tray adds up to
@@ -200,6 +234,7 @@ struct AddExpenseSheet: View {
         }
     }
     private var splitting: [Friend] { everyone.filter { chosen.contains($0.id) } }
+    private var me: Friend? { friends.first { $0.isMe } }
     private func name(_ friend: Friend) -> String { friend.isMe ? "You" : friend.name }
 
     /// What each person ends up owing, by mode. Cents, summing to the amount (except in Exact,
@@ -224,6 +259,26 @@ struct AddExpenseSheet: View {
         code = splits.first?.currencyCode ?? Currency.default
         payerID = everyone.first { $0.isMe }?.id ?? everyone.first?.id
         chosen = Set(everyone.map(\.id))
+        // Nobody to split with yet: open with the bar out rather than with an empty tray.
+        adding = everyone.count < 2
+    }
+
+    /// Somebody named in this sheet. Same rules as `PeopleSheet`, because they make the same rows:
+    /// one free colour each, the address-book id kept the first time it turns up, and — on a store
+    /// that still has no "you" — the first name given is yours, which is why the field asks for it.
+    private func addPerson(_ raw: String, contactIdentifier: String?) {
+        let clean = String(raw.trimmingCharacters(in: .whitespaces).prefix(24))   // a first name, not a paragraph
+        guard !clean.isEmpty else { return }
+        let nobodyIsMe = Friend.me(in: context) == nil
+        // Two friends sharing a colour would be one blur of avatars on the bill; take a free one.
+        let used = Set(friends.map(\.colorIndex))
+        let free = (0..<Theme.avatarColors.count).first { !used.contains($0) } ?? friends.count
+        let friend = Friend.resolve(name: clean, in: context, preferredColor: free)
+        if let contactIdentifier, friend.contactIdentifier == nil { friend.contactIdentifier = contactIdentifier }
+        if nobodyIsMe { friend.isMe = true }
+        chosen.insert(friend.id)
+        if payerID == nil { payerID = friend.id }
+        nameFocused = contactIdentifier == nil   // a keyboard over the list you just picked from is only in the way
     }
 
     private func toggle(_ friend: Friend) {
@@ -232,10 +287,12 @@ struct AddExpenseSheet: View {
         guard friend.id != payerID else { return }
         if chosen.contains(friend.id) { chosen.remove(friend.id) } else { chosen.insert(friend.id) }
     }
+}
 
-    // MARK: - Writing it down
+// MARK: - Writing it down
 
-    private func save() {
+extension AddExpenseSheet {
+    fileprivate func save() {
         let people = splitting
         let split = Split(title: title.trimmingCharacters(in: .whitespaces))
         split.splitKind = .typed

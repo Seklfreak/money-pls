@@ -22,18 +22,19 @@ struct BalanceShareSheet: View {
                 Text(cards.count > 1 ? "\(cards.count) cards, one per currency." : "A little card they can read without opening anything.")
                     .font(Theme.text(13)).foregroundStyle(Theme.muted)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            Spacer(minLength: 0)
+            // The card starts where the subtitle ends. A pair of spacers would centre it, and one
+            // open bill makes a short card — which centres into a band of nothing above and below.
             if cards.isEmpty {
                 Text("Nothing to ask \(friend.name) for right now.").font(Theme.text(14)).foregroundStyle(Theme.muted)
             } else if cards.count == 1 {
-                BalanceCard(card: cards[0]).padding(.vertical, 20)
+                BalanceCard(card: cards[0]).padding(.bottom, 20)   // room for the card's own raised edge
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 14) { ForEach(cards) { BalanceCard(card: $0).frame(width: 320) } }
-                        .scrollTargetLayout().padding(.horizontal, 2).padding(.vertical, 20)
+                        .scrollTargetLayout().padding(.horizontal, 2).padding(.bottom, 20)
                 }.scrollTargetBehavior(.viewAligned).scrollClipDisabled()
             }
-            Spacer(minLength: 0)
+            Spacer(minLength: 12)
             VStack(spacing: 10) {
                 PrimaryButton(title: cards.count > 1 ? "Send the cards" : "Send the card", icon: "square.and.arrow.up") { share(cards) }
                 SecondaryButton(title: copied ? "Copied!" : "Copy as text") {
