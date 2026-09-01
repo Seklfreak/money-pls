@@ -24,6 +24,8 @@ enum Analytics {
         case share
         case friend
         case settle
+        case addExpense = "add-expense"
+        case you
 
         var title: String {
             switch self {
@@ -38,6 +40,8 @@ enum Analytics {
             case .share: "Share"
             case .friend: "Friend"
             case .settle: "Settle up"
+            case .addExpense: "Add an expense"
+            case .you: "You"
             }
         }
     }
