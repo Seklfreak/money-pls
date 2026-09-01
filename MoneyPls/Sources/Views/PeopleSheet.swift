@@ -8,6 +8,7 @@ struct PeopleSheet: View {
     @Environment(\.modelContext) private var context
     @Query private var friends: [Friend]
     @State private var name = ""
+    @State private var showContacts = false
     @FocusState private var focused: Bool
 
     /// Friends from earlier splits, most recently used first, minus whoever is already here.
@@ -23,18 +24,24 @@ struct PeopleSheet: View {
             Capsule().fill(Theme.sand).frame(width: 40, height: 5).padding(.top, 12)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Who's splitting?").font(Theme.disp(24, .bold)).foregroundStyle(Theme.ink)
-                Text(split.people.isEmpty ? "Start with yourself — you paid. First names are fine." : "First names are fine. No accounts, no fuss.")
+                Text(split.people.isEmpty ? "Start with yourself — you paid. First names are fine."
+                     : "Straight from Contacts, or just a first name. No accounts, no fuss.")
                     .font(Theme.text(13)).foregroundStyle(Theme.muted)
             }.frame(maxWidth: .infinity, alignment: .leading)
-            HStack(spacing: 8) {
-                TextField(split.people.isEmpty ? "Your name" : "Add a friend", text: $name).focused($focused)
-                    .font(Theme.text(16)).foregroundStyle(Theme.ink).submitLabel(.done).onSubmit(add)
-                    .padding(.horizontal, 16).frame(height: 52).frame(maxWidth: .infinity)
-                    .raised(Capsule(), fill: .white, shadow: Theme.line, depth: 3)
-                Button(action: add) {
-                    Text("Add").font(Theme.disp(16)).foregroundStyle(.white).padding(.horizontal, 20).frame(height: 52)
-                        .raised(Capsule(), fill: Theme.pink, shadow: Theme.pinkShadow, depth: 4)
-                }.buttonStyle(PressStyle()).disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+            VStack(spacing: 10) {
+                PrimaryButton(title: "Pick from Contacts", icon: "person.2.fill", height: 52, fontSize: 17) { showContacts = true }
+                HStack(spacing: 8) {
+                    TextField(split.people.isEmpty ? "Your name" : "or type a name", text: $name).focused($focused)
+                        .font(Theme.text(16)).foregroundStyle(Theme.ink).submitLabel(.done).onSubmit(add)
+                        .padding(.horizontal, 16).frame(height: 52).frame(maxWidth: .infinity)
+                        .raised(Capsule(), fill: .white, shadow: Theme.line, depth: 3)
+                    // Quiet next to the pink Contacts button — two shouting buttons on one row read as a choice you have to make.
+                    Button(action: add) {
+                        Text("Add").font(Theme.disp(16)).foregroundStyle(typed.isEmpty ? Theme.faint : Theme.ink)
+                            .padding(.horizontal, 20).frame(height: 52)
+                            .raised(Capsule(), fill: .white, shadow: Theme.line, depth: 3)
+                    }.buttonStyle(PressStyle()).disabled(typed.isEmpty)
+                }
             }
             ScrollView {
                 VStack(spacing: 18) {
@@ -83,14 +90,29 @@ struct PeopleSheet: View {
             Analytics.screen(.people)
             if split.people.isEmpty { focused = true }
         }
+        // The picker is presented from here rather than wrapped in a `.sheet` — see `ContactPicker`.
+        .background(ContactPicker(presented: $showContacts, onPick: picked))
+    }
+
+    private var typed: String { name.trimmingCharacters(in: .whitespaces) }
+
+    private func picked(_ contacts: [PickedContact]) {
+        Analytics.track("contacts_picked", ["count": String(contacts.count)])
+        for contact in contacts { add(contact.name, preferredColor: nil, contactIdentifier: contact.identifier) }
     }
 
     private func add() { add(name, preferredColor: nil); name = "" }
-    private func add(_ raw: String, preferredColor: Int?) {
+    private func add(_ raw: String, preferredColor: Int?, contactIdentifier: String? = nil) {
         let n = String(raw.trimmingCharacters(in: .whitespaces).prefix(24))   // a first name, not a paragraph
         guard !n.isEmpty, !split.people.contains(where: { $0.name.lowercased() == n.lowercased() }) else { return }
+        let first = split.people.isEmpty
         let used = Set(split.people.map(\.colorIndex))
         let friend = Friend.resolve(name: n, in: context, preferredColor: preferredColor ?? split.people.count)
+        // Keep the address-book id the first time it turns up; a friend typed in later shouldn't lose it.
+        if let contactIdentifier, friend.contactIdentifier == nil { friend.contactIdentifier = contactIdentifier }
+        // Nobody has said who you are yet and this is the person who paid: on a fresh install, that's you.
+        // Without it every balance would be missing its other side until the You sheet is opened.
+        if first, Friend.me(in: context) == nil { friend.isMe = true }
         // The Person keeps its own copy of the name and colour, so an old split still reads the
         // way it did — but a new one starts from whatever the friend is called now.
         var color = friend.colorIndex
@@ -99,7 +121,7 @@ struct PeopleSheet: View {
         p.friend = friend
         split.people.append(p)
         if split.payerID == nil { split.payerID = p.id }
-        focused = true
+        focused = contactIdentifier == nil   // a keyboard popping up over the list you just picked from is only in the way
     }
     private func remove(_ p: Person) {
         for item in split.items { item.assigneeIDs.removeAll { $0 == p.id } }
