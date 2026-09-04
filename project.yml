@@ -7,7 +7,7 @@ options:
 packages:
   Sentry:
     url: https://github.com/getsentry/sentry-cocoa
-    from: 9.26.1
+    from: 9.27.0
 configFiles:
   Debug: Config/Secrets.xcconfig
   Release: Config/Secrets.xcconfig
