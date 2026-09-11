@@ -13,15 +13,24 @@ enum Heuristics {
     static let noise = ["reprint", "suggested", "you pay", "order:", "order #", "table:", "guests", "qr code", "powered by", "unpaid",
                         "check #", "server", "ticket", "authorization", "receipt:", "station"]
     // Summary-line keywords, English plus the languages of receipts people bring home. CJK ones are matched
-    // by containment, Latin ones as whole words.
+    // by containment, Latin ones only where they end a word (see `hasKeyword`).
     // "btotal" / "otal due": the document crop sometimes shaves the first letters off the left column.
     static let subtotalWords = ["subtotal", "sub total", "btotal", "zwischensumme", "sous-total", "subtotaal", "小計", "小计", "소계"]
-    static let totalWords = ["total", "otal due", "otal:", "amount due", "balance due", "gesamt", "summe", "totaal", "montant", "合計", "合计", "総計", "합계", "총액"]
+    static let totalWords = ["total", "totale", "totalt", "otal due", "otal:", "amount due", "balance due", "gesamt", "gesamtbetrag", "summe", "totaal", "montant",
+                             "合計", "合计", "総計", "합계", "총액"]
     static let taxRe = #"\b(tax|mwst|ust|tva|iva|vat|btw|gst|hst)\b"#
     static let taxWords = ["消費税", "税", "부가세"]
     static let tipRe = #"\b(tip|gratuity|service|trinkgeld|pourboire)\b"#
-    static func isSubtotal(_ s: String) -> Bool { subtotalWords.contains { s.contains($0) } }
-    static func isTotal(_ s: String) -> Bool { totalWords.contains { s.contains($0) } }
+    /// A Latin keyword has to end the word it sits in: "Summe" is a total, "Summer Rolls" is dinner. The head stays
+    /// free so the clipped fragments above still match. CJK keywords match anywhere.
+    static func hasKeyword(_ s: String, _ words: [String]) -> Bool {
+        words.contains { w in
+            guard let f = w.first, f.isASCII else { return s.contains(w) }
+            return s.range(of: NSRegularExpression.escapedPattern(for: w) + #"(?!\p{L})"#, options: .regularExpression) != nil
+        }
+    }
+    static func isSubtotal(_ s: String) -> Bool { hasKeyword(s, subtotalWords) }
+    static func isTotal(_ s: String) -> Bool { hasKeyword(s, totalWords) }
     static func isTax(_ s: String) -> Bool { s.range(of: taxRe, options: .regularExpression) != nil || taxWords.contains { s.contains($0) } }
     static func isTip(_ s: String) -> Bool { s.range(of: tipRe, options: .regularExpression) != nil }
 
