@@ -133,9 +133,15 @@ struct ItemsView: View {
         guard split.subtotalCents > 0, split.tipCents > 0 else { return nil }
         return Int((Double(split.tipCents) / Double(split.subtotalCents) * 100).rounded())
     }
+    /// One line for the scan report: what the parser produced next to what the split holds now. The two differ
+    /// once the user has fixed the items by hand, which is exactly what a report reader needs to know.
     private var reportContext: String {
         let c = split.currencyCode
-        return "Items after parse: \(split.items.count), sum \(split.subtotalCents.money(c)), printed subtotal \(split.printedSubtotalCents?.money(c) ?? "none"), currency \(c)"
+        let printed = "printed subtotal \(split.printedSubtotalCents?.money(c) ?? "none")"
+        let now = "\(split.items.count) items, sum \(split.subtotalCents.money(c))"
+        guard let parsed = split.parseTrace.flatMap(ScanTrace.parsedItems) else { return "Now: \(now), \(printed), currency \(c)" }
+        let edited = parsed.count != split.items.count || parsed.sumCents != split.subtotalCents
+        return "Parsed: \(parsed.count) items, sum \(parsed.sumCents.money(c)), \(printed) · Now: \(now)\(edited ? " (edited)" : ""), currency \(c)"
     }
     private var tipLabel: String { tipPercent.map { "TIP · \($0)%" } ?? "TIP" }
     private var untranslated: [String: String] {

@@ -26,6 +26,9 @@ final class HeuristicsTests: XCTestCase {
         ]
         let r = Heuristics.parse(lines: lines)
         XCTAssertEqual(r.items.map(\.priceCents), [1100, 3095, 4395, 3395, 1595])
+        // Toast prints "1 name" on every item; the summary and tip lines must not outvote that quantity column.
+        XCTAssertEqual(r.items.map(\.name), ["lychee delight", "Mama J'O", "Walk into the Sea", "Kaeng Phed Ped Lychee", "Shrimp Summer Rolls"])
+        XCTAssertEqual(r.items.map(\.quantity), [1, 1, 1, 1, 1])
         XCTAssertEqual(r.subtotalCents, 13580)
         XCTAssertEqual(r.tipCents, 2444)
         XCTAssertEqual(r.taxCents, 1207)
@@ -49,5 +52,22 @@ final class HeuristicsTests: XCTestCase {
         XCTAssertTrue(Heuristics.isSubtotal("btotal"))
         XCTAssertTrue(Heuristics.isSubtotal("zwischensumme"))
         XCTAssertFalse(Heuristics.isSubtotal("subtotals are fun")) // not a receipt line anyway; "subtotals" ≠ "subtotal"
+    }
+
+    /// The scan report reads the parser's result back out of the stored trace, so it can show it next to
+    /// whatever the user has edited the split into since.
+    func testParsedItemsReadBackFromTrace() {
+        let trace = """
+        2026-09-06T01:00:55Z L15: 1 Shrimp Summer Rolls ⇥ $15.95
+        2026-09-06T01:00:55Z ITEM 1 × 1 lychee delight = 1100
+        2026-09-06T01:00:55Z ITEM 2 × Mama J'O = 3095
+        2026-09-06T01:00:55Z ITEM 1 × Refund = -500
+        2026-09-06T01:00:55Z parsed 3 items sum=3695 subtotal=1595
+        """
+        let parsed = ScanTrace.parsedItems(in: trace)
+        XCTAssertEqual(parsed?.count, 3)
+        XCTAssertEqual(parsed?.sumCents, 3695)
+        XCTAssertNil(ScanTrace.parsedItems(in: "2026-09-06T01:00:55Z ERROR requestCancelled"))
+        XCTAssertNil(ScanTrace.parsedItems(in: ""))
     }
 }

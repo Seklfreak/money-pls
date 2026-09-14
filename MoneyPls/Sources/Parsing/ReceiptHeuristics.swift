@@ -127,7 +127,11 @@ enum Heuristics {
         let latinLines = lines.filter { $0.filter { $0.isLetter && $0.isASCII }.count >= 3 }.count
         let cjkReceipt = latinLines * 4 < lines.count
         func latin(_ s: String) -> String { cjkReceipt ? s.replacingOccurrences(of: "\t", with: " ").trimmingCharacters(in: .whitespaces) : stripHan(s) }
-        let priced = lines.filter { money($0) != nil }
+        // Only lines above the first summary line vote: subtotal, tax and suggested-tip lines never carry a
+        // quantity and would outvote a short order (Toast prints "1 name" on every item and four tip lines).
+        let itemLines = lines.prefix { let t = $0.lowercased(); return !(isSubtotal(t) || isTotal(t)) }
+        var priced = itemLines.filter { money($0) != nil }
+        if priced.count < 3 { priced = lines.filter { money($0) != nil } }
         let leadingInt = priced.filter { $0.range(of: #"^\d{1,2}\s+\D"#, options: .regularExpression) != nil }.count
         let qtyColumn = priced.count >= 3 && leadingInt * 10 >= priced.count * 6
 
