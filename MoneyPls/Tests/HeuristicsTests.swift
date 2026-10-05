@@ -81,6 +81,24 @@ final class HeuristicsTests: XCTestCase {
         XCTAssertEqual(r.currencyCode, "USD")
     }
 
+    /// On a Chinese-only receipt names are kept whole, so the quantity the line builder joins in front and the
+    /// bullet of an add-on have to come off here.
+    func testChineseOnlyReceiptTakesQuantityAndBulletOffTheName() {
+        let r = Heuristics.parse(lines: ["奈哥", "3\t雪碧\t$5.85", "1 肥牛香锅\t$14.95", "-莲藕\t$3.00", "小计\t$23.80"])
+        XCTAssertEqual(r.items.map(\.name), ["雪碧", "肥牛香锅", "莲藕"])
+        XCTAssertEqual(r.items.map(\.quantity), [3, 1, 1])
+        XCTAssertTrue(r.reconciles)
+    }
+
+    /// Recovering a lost price from another OCR pass must not add a dish we already have under a one-stroke
+    /// misreading ("肥午" for "肥牛"): that invented a $14.95 item and made a receipt that overcharges add up.
+    func testOneCharacterMisreadIsTheSameName() {
+        XCTAssertTrue(Heuristics.similar(Heuristics.key("肥午（单人份）"), Heuristics.key("肥牛（单人份）")))
+        XCTAssertTrue(Heuristics.similar("lotusroot", "otusroot"))
+        XCTAssertFalse(Heuristics.similar("鸡", "鸭"))
+        XCTAssertFalse(Heuristics.similar("肥牛单人份", "肥牛双人锅"))
+    }
+
     /// The keyword rule itself: a Latin word matches only where it ends a word, clipped fragments and
     /// German compounds included; CJK matches anywhere.
     func testSummaryKeywordsEndAWord() {

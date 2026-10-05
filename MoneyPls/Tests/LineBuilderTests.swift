@@ -33,4 +33,14 @@ final class LineBuilderTests: XCTestCase {
         ]
         XCTAssertEqual(ReceiptParser.groupLines(words), ["1 Beef Tartare\t$34.00", "1 Fried Dorade\t$75.00", "1 Passion Fruit Gelato\t$14.00"])
     }
+
+    /// A quantity column too far left to join the name as a phrase, sitting a little below the name's row: it used
+    /// to become a line of its own after the item and went to the next one.
+    func testLoneQuantityJoinsTheNameOnItsRow() {
+        let words = [
+            word("3", x: 0.10, to: 0.12, y: 0.496), word("雪碧", x: 0.17, to: 0.28, y: 0.50), word("$5.85", x: 0.71, to: 0.86, y: 0.50),
+            word("1", x: 0.10, to: 0.12, y: 0.466), word("秘制口水鸡", x: 0.17, to: 0.40, y: 0.47), word("$7.95", x: 0.71, to: 0.86, y: 0.47),
+        ]
+        XCTAssertEqual(ReceiptParser.groupLines(words), ["3\t雪碧\t$5.85", "1\t秘制口水鸡\t$7.95"])
+    }
 }

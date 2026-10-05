@@ -237,7 +237,20 @@ enum ReceiptParser {
         } }
         var g: [Int: [Word]] = [:]
         for i in 0..<n { g[find(i), default: []].append(words[i]) }
-        let phrases = g.values.map { Phrase(words: $0) }.sorted { $0.midY > $1.midY }
+        var phrases = g.values.map { Phrase(words: $0) }.sorted { $0.midY > $1.midY }
+        // A quantity printed in its own column sits too far left to join the name as a phrase, and on a curl it
+        // drops below the name's row: the line sorts after the item and the parser hands the quantity to the next
+        // one. A lone one- or two-digit number joins the name to its right on its row.
+        var joined = Set<Int>()
+        for (i, num) in phrases.enumerated() where num.words.count == 1 && num.text.range(of: #"^\d{1,2}$"#, options: .regularExpression) != nil {
+            let name = phrases.indices.filter { j in
+                let q = phrases[j]
+                return j != i && !joined.contains(j) && !q.isPrice && q.text.contains(where: \.isLetter)
+                    && q.minX > num.maxX && q.minX - num.maxX < 8 * q.h && abs(q.leftY - num.midY) < 0.5 * q.h
+            }.min { phrases[$0].minX < phrases[$1].minX }
+            if let j = name { phrases[j].words.insert(contentsOf: num.words, at: 0); joined.insert(i) }
+        }
+        phrases = phrases.enumerated().filter { !joined.contains($0.offset) }.map(\.element)
         var used = Set<Int>()
         var lines: [Phrase] = []
         var misfit: CGFloat = 0, prices = 0

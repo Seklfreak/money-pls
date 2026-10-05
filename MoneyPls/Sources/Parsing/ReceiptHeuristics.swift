@@ -99,9 +99,13 @@ enum Heuristics {
     }
     /// Letters and digits only, lowercased — what two OCR passes reliably agree on for the same name.
     static func key(_ s: String) -> String { s.lowercased().filter { $0.isLetter || $0.isNumber } }
-    /// OCR clips edges ("otus Root" for "LOTUS ROOT"), so containment counts once there is enough to go on.
+    /// OCR clips edges ("otus Root" for "LOTUS ROOT"), so containment counts once there is enough to go on. It
+    /// also misreads one stroke ("肥午" for "肥牛"): same length and one character off is the same name too.
     static func similar(_ a: String, _ b: String) -> Bool {
-        a == b || (min(a.count, b.count) >= 4 && (a.contains(b) || b.contains(a)))
+        if a == b { return true }
+        guard min(a.count, b.count) >= 4 else { return false }
+        if a.contains(b) || b.contains(a) { return true }
+        return a.count == b.count && zip(a, b).filter { $0 != $1 }.count == 1
     }
     static func boxes(_ raw: String) -> [String] {
         raw.split(separator: "\t").map { String($0).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
@@ -156,7 +160,13 @@ enum Heuristics {
             var q: Int?
             if let f = b.first, let n = Int(f), n > 0, n < 100 { q = n; b.removeFirst() }
             var name = b.joined(separator: " ")
-            if qtyColumn, let m = name.range(of: #"^\d{1,2}\s+(?=\D)"#, options: .regularExpression) { q = Int(name[m].trimmingCharacters(in: .whitespaces)); name.removeSubrange(m) }
+            // A leading number is the quantity in a quantity column, and always in front of a CJK name, which never
+            // starts with a free-standing number.
+            if let m = name.range(of: qtyColumn ? #"^\d{1,2}\s+(?=\D)"# : #"^\d{1,2}\s+(?=\p{Han})"#, options: .regularExpression) {
+                q = Int(name[m].trimmingCharacters(in: .whitespaces)); name.removeSubrange(m)
+            }
+            // Add-ons under a dish are bulleted ("-莲藕", "• extra egg"); the bullet isn't part of the name.
+            if let m = name.range(of: #"^[-•·*+]+\s*(?=\p{L})"#, options: .regularExpression) { name.removeSubrange(m) }
             if let m = name.range(of: #"\s*[×xX]\s?(\d{1,2})\s*$"#, options: .regularExpression) { q = Int(name[m].filter(\.isNumber)); name.removeSubrange(m) }
             return (name.trimmingCharacters(in: .whitespaces), q)
         }
