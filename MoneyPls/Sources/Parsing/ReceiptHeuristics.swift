@@ -120,7 +120,15 @@ enum Heuristics {
         var pendingPrice: (price: Int, qty: Int, name: String?)?
         func flushPending() {
             guard let pp = pendingPrice, let n = pp.name else { return }
-            r.items.append(ParsedItem(name: n, quantity: pp.qty, priceCents: pp.price)); pendingPrice = nil
+            r.items.append(ParsedItem(name: cjkLabel(n), quantity: pp.qty, priceCents: pp.price)); pendingPrice = nil
+        }
+        /// The CJK text held with a price still carries what the Latin pass would have taken off: a leading quantity,
+        /// a modifier bullet ("-金针菇 X2" is an add-on under the dish above) and a trailing "× 2".
+        func cjkLabel(_ s: String) -> String {
+            var t = s.replacingOccurrences(of: "\t", with: " ").trimmingCharacters(in: .whitespaces)
+            t = t.replacingOccurrences(of: #"^(?:\d{1,2}\s+)?[-•·*+]*\s*"#, with: "", options: .regularExpression)
+            t = t.replacingOccurrences(of: #"\s*[×xX]\s?\d{1,2}\s*$"#, with: "", options: .regularExpression)
+            return t.isEmpty ? s : t
         }
         // A receipt with hardly any Latin lines (Japanese, Chinese-only) names its items in CJK: keep that text
         // instead of treating it as the sub-label of an English line that never comes.
@@ -215,7 +223,9 @@ enum Heuristics {
                 continue
             }
             if let pp = pendingPrice, !text.isEmpty {
-                if summary || pp.name == nil {   // drifted column: swap — the pending price is ours, ours belongs to the next line
+                // Drifted column: swap — the pending price is ours, ours belongs to the next line. Only a bare price
+                // drifts; one held with its CJK name is an item, even right above the subtotal ("双人份 $14.95").
+                if pp.name == nil {
                     pendingPrice = (price, 1, nil); price = pp.price
                 } else { flushPending() }   // the held CJK-named line was an item after all
             }
@@ -226,12 +236,15 @@ enum Heuristics {
             if isTip(tl) { r.tipCents = price; continue }
             var qty = pendingQty ?? 1
             var (name, q) = nameAndQty(text)
+            // What's left once the Han is stripped can be just a bullet ("•连耦" → "•"): no name at all.
+            if !name.contains(where: \.isLetter) { name = "" }
             if name.isEmpty, let p = pendingName { let (pn, pq) = nameAndQty(p); name = pn; q = q ?? pq; pendingName = nil }
             if let q { qty = q }
             dropPending(); pendingQty = nil
             if name.isEmpty {
                 // Past the subtotal, an amount with no label is tax or a fee whose label the OCR dropped.
                 if r.subtotalCents != nil { r.taxCents = (r.taxCents ?? 0) + price; continue }
+                flushPending()   // two CJK-only lines in a row: the held one was an item, don't overwrite it
                 pendingPrice = (price, qty, cjkName.contains(where: \.isLetter) ? cjkName : nil); continue
             }
             r.items.append(ParsedItem(name: name, quantity: qty, priceCents: price))
