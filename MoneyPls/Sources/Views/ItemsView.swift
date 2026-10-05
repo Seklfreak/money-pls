@@ -12,6 +12,7 @@ struct ItemsView: View {
     @State private var translation: TranslationSession.Configuration?
     @State private var translations: [String: String] = [:]
     @State private var translationFailure: String?
+    @State private var translating = false
     @FocusState private var focus: UUID?
 
     var body: some View {
@@ -34,9 +35,16 @@ struct ItemsView: View {
                                     Analytics.track("items_translated")
                                     translate()
                                 } label: {
-                                    Image(systemName: "character.book.closed").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.pink)
-                                        .frame(width: 60, height: 32).background(Capsule().fill(Theme.bg))
-                                }.accessibilityLabel("Translate names")
+                                    // The first run downloads the language pack and a batch takes a few seconds: the
+                                    // spinner stands in for the icon until the names come back.
+                                    Group {
+                                        if translating { ProgressView().tint(Theme.pink) } else {
+                                            Image(systemName: "character.book.closed").font(.system(size: 15, weight: .bold)).foregroundStyle(Theme.pink)
+                                        }
+                                    }.frame(width: 60, height: 32).background(Capsule().fill(Theme.bg))
+                                }
+                                .disabled(translating)
+                                .accessibilityLabel(translating ? "Translating names" : "Translate names")
                             } else {
                                 Color.clear.frame(width: 60, height: 1)
                             }
@@ -112,7 +120,7 @@ struct ItemsView: View {
         .toolbar(.hidden, for: .navigationBar)
         .onAppear { Analytics.screen(.items) }
         .environment(\.currency, split.currencyCode)
-        .translateNames($translation, names: untranslated, results: $translations, failure: $translationFailure)
+        .translateNames($translation, names: untranslated, results: $translations, failure: $translationFailure, running: $translating)
         .alert("Translation unavailable", isPresented: Binding(get: { translationFailure != nil }, set: { if !$0 { translationFailure = nil } })) {
             Button("OK") {}
         } message: { Text(translationFailure ?? "") }
@@ -157,7 +165,10 @@ struct ItemsView: View {
             if let l = recognizer.dominantLanguage?.rawValue { votes[l, default: 0] += 1 }
         }
         guard let source = votes.max(by: { $0.value < $1.value })?.key else { return }
-        translation = TranslationSession.Configuration(source: Locale.Language(identifier: source), target: Locale.current.language)
+        translating = true
+        let config = TranslationSession.Configuration(source: Locale.Language(identifier: source), target: Locale.current.language)
+        // An unchanged configuration doesn't start a new session; invalidating the current one does.
+        if translation?.source == config.source && translation?.target == config.target { translation?.invalidate() } else { translation = config }
     }
     private func addItem() {
         let item = LineItem(name: "", quantity: 1, priceCents: 0, order: (split.items.map(\.order).max() ?? -1) + 1)
