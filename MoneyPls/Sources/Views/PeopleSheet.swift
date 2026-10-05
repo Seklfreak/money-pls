@@ -1,13 +1,14 @@
 import SwiftUI
 import SwiftData
 
-/// "Who's splitting?" — first names only; first person added is you (the payer).
+/// "Who's splitting?" — first names only; first person added is you (the payer). Tap someone else if they paid.
 struct PeopleSheet: View {
     @Bindable var split: Split
     let done: () -> Void
     @Environment(\.modelContext) private var context
     @Query private var friends: [Friend]
     @FocusState private var focused: Bool
+    @State private var pendingPayer: Person?
 
     /// Friends from earlier splits, most recently used first, minus whoever is already here.
     private var suspects: [Friend] {
@@ -23,7 +24,7 @@ struct PeopleSheet: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Who's splitting?").font(Theme.disp(24, .bold)).foregroundStyle(Theme.ink)
                 Text(split.people.isEmpty ? "Start with yourself — you paid. First names are fine."
-                     : "Straight from Contacts, or just a first name. No accounts, no fuss.")
+                     : "Straight from Contacts, or just a first name. Tap whoever paid.")
                     .font(Theme.text(13)).foregroundStyle(Theme.muted)
             }.frame(maxWidth: .infinity, alignment: .leading)
             AddPersonBar(placeholder: split.people.isEmpty ? "Your name" : "or type a name", focus: $focused) { name, identifier in
@@ -35,10 +36,18 @@ struct PeopleSheet: View {
                         VStack(spacing: 0) {
                             ForEach(split.sortedPeople) { p in
                                 HStack(spacing: 12) {
-                                    Avatar(p, size: 44)
-                                    Text(p.name).font(Theme.disp(17)).foregroundStyle(Theme.ink).lineLimit(1)
-                                    Spacer()
-                                    if p.id == split.payer?.id { Pill(bg: Theme.amberBg, fg: Theme.amber, shadow: false) { Text("you paid") } }
+                                    let paid = p.id == split.payer?.id
+                                    Button { choosePayer(p) } label: {
+                                        HStack(spacing: 12) {
+                                            Avatar(p, size: 44)
+                                            Text(p.name).font(Theme.disp(17)).foregroundStyle(Theme.ink).lineLimit(1)
+                                            Spacer()
+                                            if paid { Pill(bg: Theme.amberBg, fg: Theme.amber, shadow: false) { Text(p.friend?.isMe == true ? "you paid" : "paid") } }
+                                        }.contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .accessibilityLabel(paid ? "\(p.name), paid" : p.name)
+                                    .accessibilityHint(paid ? "" : "Makes \(p.name) the one who paid")
                                     Button { remove(p) } label: {
                                         Image(systemName: "xmark").font(.system(size: 12, weight: .heavy)).foregroundStyle(Theme.faint)
                                             .frame(width: 36, height: 36).background(Circle().fill(Theme.bg))
@@ -72,6 +81,7 @@ struct PeopleSheet: View {
         }
         .padding(.horizontal, 16).padding(.bottom, 16)
         .background(Theme.bg.ignoresSafeArea())
+        .payerChangeConfirmation(split: split, pending: $pendingPayer)
         .onAppear {
             Analytics.screen(.people)
             if split.people.isEmpty { focused = true }
@@ -98,6 +108,10 @@ struct PeopleSheet: View {
         split.people.append(p)
         if split.payerID == nil { split.payerID = p.id }
         focused = contactIdentifier == nil   // a keyboard popping up over the list you just picked from is only in the way
+    }
+    private func choosePayer(_ p: Person) {
+        guard p.id != split.payer?.id else { return }
+        if split.settledCount > 0 { pendingPayer = p } else { Analytics.track("payer_changed"); split.setPayer(p, in: context) }
     }
     private func remove(_ p: Person) {
         for item in split.items { item.assigneeIDs.removeAll { $0 == p.id } }
@@ -127,5 +141,28 @@ struct FlowLayout: Layout {
         for s in subviews { let sz = size(s, maxWidth: b.width)
             if x + sz.width > b.maxX, x > b.minX { x = b.minX; y += rowH + spacing; rowH = 0 }
             s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(width: sz.width, height: sz.height)); x += sz.width + spacing; rowH = max(rowH, sz.height) }
+    }
+}
+
+extension View {
+    /// Asks before a payer change clears the "paid back" ticks — they were all towards the old payer.
+    func payerChangeConfirmation(split: Split, pending: Binding<Person?>) -> some View {
+        modifier(PayerChangeConfirmation(split: split, pending: pending))
+    }
+}
+
+private struct PayerChangeConfirmation: ViewModifier {
+    let split: Split
+    @Binding var pending: Person?
+    @Environment(\.modelContext) private var context
+    func body(content: Content) -> some View {
+        let n = split.settledCount
+        content.confirmationDialog("\(pending?.name ?? "They") paid?", isPresented: Binding(get: { pending != nil }, set: { if !$0 { pending = nil } }),
+                                   titleVisibility: .visible, presenting: pending) { p in
+            Button("Change who paid") { Analytics.track("payer_changed"); split.setPayer(p, in: context) }
+            Button("Cancel", role: .cancel) {}
+        } message: { _ in
+            Text("\(n) \(n == 1 ? "person is" : "people are") marked as paid back. That was to \(split.payer?.name ?? "the old payer"), so the ticks will be cleared.")
+        }
     }
 }

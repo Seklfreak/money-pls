@@ -81,6 +81,24 @@ final class BalancesTests: XCTestCase {
         XCTAssertTrue(Money.balances(splits: [s], payments: [], me: me).isEmpty)
     }
 
+    /// A scan assumes the first person added paid. Switching to the friend who really did flips the balance, and
+    /// the "paid back" ticks — which went to the old payer — are cleared with the payments they recorded.
+    func testChangingThePayerFlipsTheBalanceAndClearsTicks() {
+        let ann = friend("Ann", color: 1), bo = friend("Bo", color: 2)
+        let s = split("Dinner", total: 3000, paidBy: me, with: [ann, bo])
+        let bosRow = s.sortedPeople[2]
+        bosRow.settled = true
+        context.insert(Payment(from: bo, to: me, cents: 1000, currencyCode: "USD", split: s))
+        XCTAssertEqual(s.settledCount, 1)
+
+        s.setPayer(s.sortedPeople[1], in: context)
+        XCTAssertEqual(s.payer?.friend?.id, ann.id)
+        XCTAssertEqual(s.settledCount, 0)
+        XCTAssertFalse(bosRow.settled)
+        XCTAssertTrue(s.payments.isEmpty)
+        XCTAssertEqual(balance(ann, [s])["USD"], -1000)
+    }
+
     // MARK: - Payments
 
     func testGeneralPaymentReducesTheBalance() {

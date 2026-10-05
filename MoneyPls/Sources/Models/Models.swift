@@ -38,6 +38,20 @@ final class Split {
     var subtotalCents: Int { items.reduce(0) { $0 + $1.priceCents } }
     var totalCents: Int { subtotalCents + taxCents + tipCents }
     var unassignedItems: [LineItem] { sortedItems.filter { !$0.everyone && $0.assigneeIDs.isEmpty } }
+    /// People ticked as having paid the payer back.
+    var settledCount: Int { people.filter { $0.id != payer?.id && $0.settled }.count }
+
+    /// Make `person` the one who paid. Every tick, and the payment it recorded, went to the old payer, so they
+    /// go too — the caller asks first when there are any (`settledCount`).
+    func setPayer(_ person: Person, in context: ModelContext) {
+        guard person.id != payer?.id else { return }
+        payerID = person.id
+        for p in people { p.settled = false }
+        // Unlinked first: a deleted model stays in the relationship until the context saves.
+        let old = payments
+        payments = []
+        for payment in old { context.delete(payment) }
+    }
 }
 
 @Model

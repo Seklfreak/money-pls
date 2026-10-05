@@ -7,6 +7,8 @@ struct BillView: View {
     @Binding var path: [Route]
     @State private var sharing: PersonBill?
     @State private var shareAll = false
+    @State private var pendingPayer: Person?
+    @Environment(\.modelContext) private var context
 
     var body: some View {
         let bills = Money.bills(for: split)
@@ -20,7 +22,19 @@ struct BillView: View {
                     HStack(alignment: .bottom) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Who owes what").font(Theme.disp(30, .bold)).foregroundStyle(Theme.ink)
-                            Text("\(split.displayTitle) · \(payer?.name ?? "You") paid \(split.totalCents.money(split.currencyCode))").font(Theme.text(14)).foregroundStyle(Theme.muted)
+                            // Who paid is a menu: a scan assumes the first person added, and this is where a wrong guess shows.
+                            Menu {
+                                ForEach(split.sortedPeople) { p in
+                                    Button { choosePayer(p) } label: {
+                                        if p.id == payer?.id { Label(p.name, systemImage: "checkmark") } else { Text(p.name) }
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Text("\(split.displayTitle) · \(payer?.name ?? "You") paid \(split.totalCents.money(split.currencyCode))")
+                                    Image(systemName: "chevron.down").font(.system(size: 9, weight: .heavy))
+                                }.font(Theme.text(14)).foregroundStyle(Theme.muted)
+                            }.accessibilityHint("Change who paid")
                             Button { path.append(.assign(split.id)) } label: {
                                 HStack(spacing: 4) { Image(systemName: "arrow.uturn.backward").font(.system(size: 11, weight: .bold)); Text("Change who had what") }
                                     .font(Theme.text(13, .extrabold)).foregroundStyle(Theme.pink)
@@ -44,7 +58,7 @@ struct BillView: View {
                                 Avatar(payer, size: 40)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(payer.name).font(Theme.disp(18)).foregroundStyle(Theme.ink)
-                                    Text("your share · \(mine.totalCents.money(split.currencyCode))").font(Theme.text(12)).foregroundStyle(Theme.muted)
+                                    Text("\(payer.friend?.isMe == true ? "your" : "their") share · \(mine.totalCents.money(split.currencyCode))").font(Theme.text(12)).foregroundStyle(Theme.muted)
                                 }
                                 Spacer()
                                 Text("—").font(Theme.disp(18)).foregroundStyle(Theme.muted)
@@ -58,6 +72,7 @@ struct BillView: View {
             }
         }
         .toolbar(.hidden, for: .navigationBar)
+        .payerChangeConfirmation(split: split, pending: $pendingPayer)
         .onAppear { Analytics.screen(.bill) }
         // A sheet closing fires no onAppear beneath it, so without these the bill would stay
         // "on" /share and marking someone paid would be filed there.
@@ -67,6 +82,11 @@ struct BillView: View {
         .sheet(isPresented: $shareAll, onDismiss: { Analytics.screen(.bill) }, content: {
             ShareSheetView(split: split, bills: bills.filter { $0.person.id != payer?.id }).presentationDetents([.large])
         })
+    }
+
+    private func choosePayer(_ p: Person) {
+        guard p.id != split.payer?.id else { return }
+        if split.settledCount > 0 { pendingPayer = p } else { Analytics.track("payer_changed"); split.setPayer(p, in: context) }
     }
 }
 
