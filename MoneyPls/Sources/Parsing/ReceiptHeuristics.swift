@@ -190,7 +190,9 @@ enum Heuristics {
                 if let q = Int(flat), q > 0, q < 100 {
                     // A bilingual sub-label can leave its leading number behind ("10 秒牛舌" → "10"). When the
                     // English line above starts with the same number it is part of the name, not a quantity.
-                    if pendingName?.hasPrefix("\(q) ") != true { pendingQty = q }
+                    // Above the first item a two-digit number alone is the order number printed big over the items
+                    // (Menusifu's "32"), not the first item's quantity.
+                    if pendingName?.hasPrefix("\(q) ") != true, !(r.items.isEmpty && pendingPrice == nil && q >= 10) { pendingQty = q }
                     continue
                 }
                 if flat.count >= 3 {

@@ -25,7 +25,11 @@ struct ParsedReceipt {
 /// The on-device pipeline validated in money-pls-lab: document crop → Vision OCR (4 rotations) →
 /// phrase/price line builder → deterministic parser. No network, no LLM on the primary path.
 enum ReceiptParser {
-    struct Word { let text: String; let conf: Float; let box: CGRect }
+    struct Word {
+        let text: String; let conf: Float; var box: CGRect
+        /// Rise over run of the text's top edge, from the observation's corners; the bounding box is axis-aligned.
+        var slope: CGFloat = 0
+    }
 
     static func parse(_ image: UIImage, alreadyCropped: Bool) async throws -> ParsedReceipt {
         guard let cg = image.normalizedCGImage() else { throw ParseError.badImage }
@@ -158,7 +162,9 @@ enum ReceiptParser {
         let words: [Word] = obs.compactMap { o in
             guard let c = o.topCandidates(1).first else { return nil }
             let b = o.boundingBox
-            return Word(text: c.string, conf: c.confidence, box: CGRect(x: b.origin.x, y: b.origin.y, width: b.width, height: b.height))
+            let run = o.topRight.x - o.topLeft.x
+            return Word(text: c.string, conf: c.confidence, box: CGRect(x: b.origin.x, y: b.origin.y, width: b.width, height: b.height),
+                        slope: run > 0 ? (o.topRight.y - o.topLeft.y) / run : 0)
         }
         let lines = groupLines(words)
         let priced = lines.filter { $0.range(of: #"\d+[.,]\d{2}\s*$"#, options: .regularExpression) != nil }.count
@@ -186,9 +192,42 @@ enum ReceiptParser {
         var isPrice: Bool { words.max { $0.box.minX < $1.box.minX }!.text.range(of: Heuristics.priceRe, options: .regularExpression) != nil }
     }
 
+    /// A receipt held in the hand curls, and the document crop only undoes perspective: near the curl a row of text
+    /// climbs towards the price column by most of a line, so the price lands nearer the row above than its own
+    /// ("32" order number ← $5.85, and every price below slides up one row). The long lines of text say how steep
+    /// the paper is at each height; levelling every word by the slope around it flattens the rows before they are
+    /// built. Vision's slopes are not always true, though (a blurry Toast receipt reads 0.03 on rows that lie
+    /// level with their prices), so `groupLines` keeps the flattened rows only where prices sit on them better.
+    static func flattened(_ words: [Word]) -> [Word] {
+        // Short words come back with their slope rounded to zero, and rotated passes with nonsense: only long,
+        // plausibly level text votes.
+        let samples = words.filter { $0.box.width >= 0.2 && abs($0.slope) < 0.2 }
+        guard !samples.isEmpty else { return words }
+        return words.map { w in
+            var sum: CGFloat = 0, weight: CGFloat = 0
+            for s in samples {
+                let d = (s.box.midY - w.box.midY) / 0.04
+                let k = s.box.width * exp(-d * d)
+                sum += k * s.slope; weight += k
+            }
+            guard weight > 1e-6 else { return w }
+            var f = w
+            f.box.origin.y -= sum / weight * (w.box.midX - 0.5)
+            return f
+        }
+    }
+
     static func groupLines(_ words: [Word]) -> [String] {
+        let raw = rows(words)
+        let flat = rows(flattened(words))
+        return flat.misfit < raw.misfit * 0.85 ? flat.lines : raw.lines
+    }
+
+    /// The lines, and how badly prices sit on them: per price, its distance from the row it joined in row heights,
+    /// or a whole row for a price that found none.
+    static func rows(_ words: [Word]) -> (lines: [String], misfit: CGFloat) {
         let n = words.count
-        if n == 0 { return [] }
+        if n == 0 { return ([], 0) }
         var parent = Array(0..<n)
         func find(_ i: Int) -> Int { var i = i; while parent[i] != i { parent[i] = parent[parent[i]]; i = parent[i] }; return i }
         for i in 0..<n { for j in 0..<n where i != j {
@@ -201,6 +240,7 @@ enum ReceiptParser {
         let phrases = g.values.map { Phrase(words: $0) }.sorted { $0.midY > $1.midY }
         var used = Set<Int>()
         var lines: [Phrase] = []
+        var misfit: CGFloat = 0, prices = 0
         for (pi, p) in phrases.enumerated() where p.isPrice && !used.contains(pi) {
             var best: (Int, CGFloat)?
             for (qi, q) in phrases.enumerated() where qi != pi && !used.contains(qi) && !q.isPrice {
@@ -211,10 +251,15 @@ enum ReceiptParser {
                 if best == nil || cost < best!.1 { best = (qi, cost) }
             }
             used.insert(pi)
-            if let (qi, _) = best { used.insert(qi); lines.append(Phrase(words: phrases[qi].words + p.words)) } else { lines.append(p) }
+            prices += 1
+            if let (qi, _) = best {
+                let q = phrases[qi]
+                misfit += abs(q.rightY - p.leftY) / max(p.h, q.h)
+                used.insert(qi); lines.append(Phrase(words: q.words + p.words))
+            } else { misfit += 1; lines.append(p) }
         }
         for (qi, q) in phrases.enumerated() where !used.contains(qi) { lines.append(q) }
-        return lines.sorted { $0.midY > $1.midY }.map(\.text)
+        return (lines.sorted { $0.midY > $1.midY }.map(\.text), prices == 0 ? 0 : misfit / CGFloat(prices))
     }
 }
 

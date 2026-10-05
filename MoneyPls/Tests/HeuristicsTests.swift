@@ -37,24 +37,25 @@ final class HeuristicsTests: XCTestCase {
         XCTAssertEqual(r.currencyCode, "USD")
     }
 
-    /// Menusifu receipt from a scan report: English header and footer, Chinese item names. Enough Latin lines that
-    /// it isn't a CJK receipt, so names get their Han stripped. Consecutive Chinese-only lines used to overwrite
-    /// each other's held price (five items lost), add-ons came out named "-" and "•", and the last item above
-    /// "Subtotal:" was swapped in as the subtotal, which pushed the subtotal into tax and the tax into total.
+    /// Menusifu receipt from a scan report: English header and footer, Chinese item names, lines as the flattened
+    /// line builder reads the photo. Enough Latin lines that it isn't a CJK receipt, so names get their Han stripped.
+    /// Consecutive Chinese-only lines used to overwrite each other's held price, add-ons came out named "-" and
+    /// "•", the last item above "Subtotal:" was swapped in as the subtotal (pushing the subtotal into tax and the
+    /// tax into total), and the order number "32" became the first item's quantity.
     func testChineseItemNamesUnderEnglishHeader() {
         let lines = [
             "坐吃", "Nai Brother", "1946 86th Street", "Brooklyn, NY 11214", "347-312-5982", "Server",
             "10/04/26 16:37:1GST: 6", "堂吃 A5",
-            "32\t$5.85",
-            "雪碧\t$7.95",
-            "秘制口水鸡", "1",   // the OCR lost this one's price
+            "32",
+            "雪碧\t$5.85",
+            "秘制口水鸡\t$7.95", "1",
             "沙爹牛肉串\t$5.95", "1",
-            "奈哥酸菜口味\t$0.00", "1",
+            "奈哥酸菜口味\t$0.00",
             "肥牛（双人份）\t$28.90",
             "日照番茄口味\t$0.00", "1",
             "肥牛（单人份）\t$14.95",
             "1 肥牛香锅\t$14.95",
-            "•连耦\t$3.00",
+            "-莲藕\t$3.00",
             "-金针菇 X2\t$6.00",
             "-魔芋丝 X2\t$6.00",
             "-大虾\t$5.00",
@@ -68,10 +69,12 @@ final class HeuristicsTests: XCTestCase {
             "*** Unpaid ***", "Tips Suggestions", "18%: $26.45", "20%: $29.39", "22%: $32.33", "POWERED BY MENUSIFU",
         ]
         let r = Heuristics.parse(lines: lines)
-        XCTAssertEqual(r.items.map(\.name), ["雪碧", "沙爹牛肉串", "奈哥酸菜口味", "肥牛（双人份）", "日照番茄口味", "肥牛（单人份）",
-                                             "肥牛香锅", "连耦", "金针菇", "魔芋丝", "大虾", "牛百叶", "鱼豆腐", "黑鱼", "双人份"])
-        XCTAssertEqual(r.items.map(\.priceCents), [795, 595, 0, 2890, 0, 1495, 1495, 300, 600, 600, 500, 500, 350, 1000, 1495])
-        XCTAssertEqual(r.items.map(\.quantity), [1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 2, 1])
+        XCTAssertEqual(r.items.map(\.name), ["雪碧", "秘制口水鸡", "沙爹牛肉串", "奈哥酸菜口味", "肥牛（双人份）", "日照番茄口味", "肥牛（单人份）",
+                                             "肥牛香锅", "莲藕", "金针菇", "魔芋丝", "大虾", "牛百叶", "鱼豆腐", "黑鱼", "双人份"])
+        XCTAssertEqual(r.items.map(\.priceCents), [585, 795, 595, 0, 2890, 0, 1495, 1495, 300, 600, 600, 500, 500, 350, 1000, 1495])
+        XCTAssertEqual(r.items.map(\.quantity), [1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1, 1, 2, 1])
+        // The receipt itself prints $14.95 more in its subtotal than its lines add up to.
+        XCTAssertEqual(r.itemSumCents, 13200)
         XCTAssertEqual(r.subtotalCents, 14695)
         XCTAssertEqual(r.taxCents, 1304)
         XCTAssertEqual(r.totalCents, 15999)
