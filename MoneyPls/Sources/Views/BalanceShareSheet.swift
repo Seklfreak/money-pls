@@ -80,7 +80,7 @@ struct BalanceShareSheet: View {
                     }
                 }
                 return BalanceCardData(currency: code, total: total, bills: bills, lines: lines,
-                                       friendName: friend.name, myName: me.name)
+                                       friendName: friend.name)
             }
     }
 
@@ -105,12 +105,11 @@ struct BalanceCardData: Identifiable {
     let bills: Int
     let lines: [ShareLine]
     let friendName: String
-    let myName: String
     var id: String { currency }
 
     var text: String {
         let body = lines.map { "\($0.label) \($0.cents.money(currency))" }.joined(separator: " · ")
-        return "\(friendName) — \(total.money(currency)) pls (to \(myName))\n\(body)"
+        return "\(friendName) — \(total.money(currency)) pls\n\(body)"
     }
 }
 
@@ -122,7 +121,7 @@ struct BalanceCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("MONEY PLS").font(Theme.disp(13)).foregroundStyle(Theme.trayDark).kerning(0.5)
                     Text("\(card.friendName),\n\(card.total.money(card.currency)) pls").font(Theme.disp(26, .bold)).foregroundStyle(Theme.ink).lineSpacing(2)
-                    Text("\(card.bills) bill\(card.bills == 1 ? "" : "s") · to \(card.myName)").font(Theme.text(12)).foregroundStyle(Theme.muted)
+                    Text("\(card.bills) bill\(card.bills == 1 ? "" : "s")").font(Theme.text(12)).foregroundStyle(Theme.muted)
                 }.padding(.bottom, 16)
                 Spacer()
                 Logo(size: 88)

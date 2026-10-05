@@ -48,7 +48,7 @@ struct ShareSheetView: View {
 
     private func text(for bill: PersonBill) -> String {
         let lines = bill.lines.map { "\($0.label)\($0.sublabel.map { " (\($0))" } ?? "") \($0.cents.money(bill.currency))" }.joined(separator: " · ")
-        return "\(bill.person.name) — \(split.displayTitle): \(bill.totalCents.money(bill.currency)) pls (to \(split.payer?.name ?? "me"))\n\(lines)"
+        return "\(bill.person.name) — \(split.displayTitle): \(bill.totalCents.money(bill.currency)) pls\(split.payeeName.map { " (to \($0))" } ?? "")\n\(lines)"
     }
 
     private func share() {
@@ -76,7 +76,7 @@ struct ShareCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("MONEY PLS").font(Theme.disp(13)).foregroundStyle(Theme.trayDark).kerning(0.5)
                     Text("\(bill.person.name),\n\(bill.totalCents.money(bill.currency)) pls").font(Theme.disp(26, .bold)).foregroundStyle(Theme.ink).lineSpacing(2)
-                    Text("\(split.displayTitle) · to \(split.payer?.name ?? "me")").font(Theme.text(12)).foregroundStyle(Theme.muted)
+                    Text(split.displayTitle + (split.payeeName.map { " · to \($0)" } ?? "")).font(Theme.text(12)).foregroundStyle(Theme.muted)
                 }.padding(.bottom, 16)
                 Spacer()
                 Logo(size: 88)
@@ -106,4 +106,13 @@ struct ShareCard: View {
 
 extension UIViewController {
     var topMost: UIViewController { presentedViewController?.topMost ?? self }
+}
+
+extension Split {
+    /// Who the money goes to, for the shared text and card — but only when it isn't the person sending them:
+    /// "pls (to Sebastian)" from Sebastian says nothing. When a friend paid, their name is the instruction.
+    var payeeName: String? {
+        guard let payer, payer.friend?.isMe != true else { return nil }
+        return payer.name
+    }
 }
